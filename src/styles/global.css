@@ -1,0 +1,187 @@
+/**
+ * Global styles and CSS custom properties for MTG Commander Deckbuilder.
+ *
+ * Dark theme with responsive breakpoints. All components can reference
+ * these custom properties for consistent theming.
+ */
+
+/* -----------------------------------------------------------------------
+   CSS Custom Properties
+   ----------------------------------------------------------------------- */
+
+:root {
+  /* Colors — primary */
+  --color-primary: #7c4dff;
+  --color-primary-hover: #6a3de8;
+  --color-primary-light: #2a2040;
+  --color-primary-border: #3a3060;
+
+  /* Colors — surface / background */
+  --color-bg: #121212;
+  --color-surface: #1e1e1e;
+  --color-surface-alt: #2a2a2a;
+  --color-surface-hover: #333;
+
+  /* Colors — text */
+  --color-text: #e0e0e0;
+  --color-text-secondary: #999;
+  --color-text-muted: #888;
+  --color-text-heading: #fff;
+
+  /* Colors — borders */
+  --color-border: #333;
+  --color-border-light: #444;
+  --color-border-focus: #7c4dff;
+
+  /* Colors — feedback */
+  --color-success: #6fbf73;
+  --color-success-bg: #1e2a1e;
+  --color-success-border: #3a5a3a;
+  --color-error: #f5a5a5;
+  --color-error-bg: #2a1a1a;
+  --color-error-border: #5a2a2a;
+
+  /* Mana colors */
+  --color-mana-white: #f9faf4;
+  --color-mana-blue: #0e68ab;
+  --color-mana-black: #150b00;
+  --color-mana-red: #d3202a;
+  --color-mana-green: #00733e;
+  --color-mana-colorless: #ccc2c0;
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+
+  /* Typography */
+  --font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans",
+    "Helvetica Neue", sans-serif;
+  --font-size-xs: 0.7rem;
+  --font-size-sm: 0.85rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.25rem;
+  --font-size-xl: 1.5rem;
+
+  /* Border radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* Touch target minimum */
+  --touch-target: 44px;
+
+  /* Breakpoints (for reference — used in media queries) */
+  /* --bp-mobile: 320px;   */
+  /* --bp-tablet: 768px;   */
+  /* --bp-desktop: 1024px; */
+  /* --bp-wide: 1440px;    */
+  /* --bp-ultra: 2560px;   */
+}
+
+/* -----------------------------------------------------------------------
+   Reset & Base Styles
+   ----------------------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+  min-height: 100%;
+  width: 100%;
+}
+
+/* -----------------------------------------------------------------------
+   Scrollbar Styling (dark theme)
+   ----------------------------------------------------------------------- */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-light);
+  border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-secondary);
+}
+
+/* -----------------------------------------------------------------------
+   Focus Styles
+   ----------------------------------------------------------------------- */
+
+:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+/* -----------------------------------------------------------------------
+   Responsive Breakpoints
+   ----------------------------------------------------------------------- */
+
+/* Mobile-first: base styles apply to 320px+ */
+
+/* Tablet and up */
+@media (min-width: 768px) {
+  html {
+    font-size: 16px;
+  }
+}
+
+/* Desktop and up */
+@media (min-width: 1024px) {
+  html {
+    font-size: 16px;
+  }
+}
+
+/* Wide screens */
+@media (min-width: 1440px) {
+  html {
+    font-size: 17px;
+  }
+}
+
+/* Ultra-wide screens */
+@media (min-width: 2560px) {
+  html {
+    font-size: 18px;
+  }
+}
