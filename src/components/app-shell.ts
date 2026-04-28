@@ -80,6 +80,8 @@ template.innerHTML = `
     grid-template-columns: 1fr;
     grid-template-areas:
       "commander"
+      "generator"
+      "generator-progress"
       "search"
       "deck"
       "stats"
@@ -90,6 +92,8 @@ template.innerHTML = `
   }
 
   .panel-commander    { grid-area: commander; }
+  .panel-generator    { grid-area: generator; }
+  .panel-generator-progress { grid-area: generator-progress; }
   .panel-search       { grid-area: search; }
   .panel-deck         { grid-area: deck; }
   .panel-stats        { grid-area: stats; }
@@ -106,6 +110,8 @@ template.innerHTML = `
       grid-template-columns: 1fr 1fr;
       grid-template-areas:
         "commander    deck"
+        "generator    deck"
+        "generator-progress deck"
         "search       deck"
         "search       stats"
         "recommendations validation"
@@ -122,7 +128,8 @@ template.innerHTML = `
       grid-template-columns: 1fr 1fr 1fr;
       grid-template-areas:
         "commander    deck       stats"
-        "search       deck       stats"
+        "generator    deck       stats"
+        "generator-progress deck  validation"
         "search       deck       validation"
         "recommendations export  saved";
     }
@@ -136,8 +143,8 @@ template.innerHTML = `
       grid-template-columns: 1.2fr 1fr 1fr 0.8fr;
       grid-template-areas:
         "commander    deck       stats      validation"
-        "search       deck       stats      export"
-        "search       deck       recommendations saved"
+        "generator    deck       stats      export"
+        "generator-progress deck recommendations saved"
         "search       deck       recommendations saved";
       gap: 20px;
       padding: 20px;
@@ -176,6 +183,14 @@ template.innerHTML = `
 <main class="app-layout" role="main">
   <section class="panel panel-commander" role="region" aria-label="Commander selection">
     <slot name="commander-search"></slot>
+  </section>
+
+  <section class="panel panel-generator" role="region" aria-label="Deck generator">
+    <slot name="deck-generator-controls"></slot>
+  </section>
+
+  <section class="panel panel-generator-progress" role="region" aria-label="Generation progress">
+    <slot name="deck-generator-progress"></slot>
   </section>
 
   <section class="panel panel-search" role="search" aria-label="Card search">

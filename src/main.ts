@@ -24,6 +24,8 @@ import { CardRecommendations } from "./components/card-recommendations.js";
 import { DeckExport } from "./components/deck-export.js";
 import { SavedDecks } from "./components/saved-decks.js";
 import { DeckValidation } from "./components/deck-validation.js";
+import { DeckGeneratorControls } from "./components/deck-generator-controls.js";
+import { DeckGeneratorProgress } from "./components/deck-generator-progress.js";
 
 // ---------------------------------------------------------------------------
 // Domain & data imports
@@ -34,6 +36,7 @@ import { createScryfallAdapter } from "./data/scryfall-adapter.js";
 import { createEDHRECAdapter } from "./data/edhrec-adapter.js";
 import { createCommanderSpellbookAdapter } from "./data/commander-spellbook-adapter.js";
 import { createLocalStorageAdapter } from "./data/local-storage-adapter.js";
+import { DeckGenerator } from "./domain/deck-generator.js";
 
 // ---------------------------------------------------------------------------
 // Register custom elements
@@ -48,6 +51,8 @@ customElements.define("card-recommendations", CardRecommendations);
 customElements.define("deck-export", DeckExport);
 customElements.define("saved-decks", SavedDecks);
 customElements.define("deck-validation", DeckValidation);
+customElements.define("deck-generator-controls", DeckGeneratorControls);
+customElements.define("deck-generator-progress", DeckGeneratorProgress);
 
 
 // ---------------------------------------------------------------------------
@@ -66,6 +71,17 @@ const commanderSpellbookAdapter = createCommanderSpellbookAdapter();
 const deckManager = new DeckManager({
   localStorageAdapter,
   scryfallAdapter,
+});
+
+// ---------------------------------------------------------------------------
+// Instantiate deck generator
+// ---------------------------------------------------------------------------
+
+const deckGenerator = new DeckGenerator({
+  scryfallAdapter,
+  edhrecAdapter,
+  commanderSpellbookAdapter,
+  deckManager,
 });
 
 // ---------------------------------------------------------------------------
@@ -136,6 +152,19 @@ function mountApp(): void {
   shell.appendChild(deckExport);
   shell.appendChild(savedDecks);
   shell.appendChild(deckValidation);
+
+  // Create and wire deck generator controls
+  const generatorControls = document.createElement("deck-generator-controls") as DeckGeneratorControls;
+  generatorControls.slot = "deck-generator-controls";
+  generatorControls.deckGenerator = deckGenerator;
+  generatorControls.deckManager = deckManager;
+  generatorControls.scryfallAdapter = scryfallAdapter;
+  shell.appendChild(generatorControls);
+
+  // Create and wire deck generator progress
+  const generatorProgress = document.createElement("deck-generator-progress") as DeckGeneratorProgress;
+  generatorProgress.slot = "deck-generator-progress";
+  shell.appendChild(generatorProgress);
 
   // Mount the shell into the DOM
   appContainer.appendChild(shell);

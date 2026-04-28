@@ -9,6 +9,7 @@
 
 import type { Card } from "../models/card.js";
 import type { Deck } from "../models/deck.js";
+import type { GenerationResult } from "../models/generation.js";
 
 // ---------------------------------------------------------------------------
 // Event type definitions
@@ -19,6 +20,9 @@ export interface EventBusEventMap {
   "deck-changed": { deck: Deck };
   "commander-changed": { commander: Card };
   error: { message: string; source?: string };
+  "generation-progress": { phase: string; percentComplete: number };
+  "generation-complete": { result: GenerationResult };
+  "generation-error": { message: string };
 }
 
 /** All valid event names on the bus. */
