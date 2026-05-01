@@ -19,6 +19,7 @@ import { AppShell } from "./components/app-shell.js";
 import { CommanderSearch } from "./components/commander-search.js";
 import { StrategyConfig } from "./components/strategy-config.js";
 import { DeckView } from "./components/deck-view.js";
+import { CreditsPage } from "./components/credits-page.js";
 
 // ---------------------------------------------------------------------------
 // Domain & data imports
@@ -39,6 +40,7 @@ customElements.define("app-shell", AppShell);
 customElements.define("commander-search", CommanderSearch);
 customElements.define("strategy-config", StrategyConfig);
 customElements.define("deck-view", DeckView);
+customElements.define("credits-page", CreditsPage);
 
 // ---------------------------------------------------------------------------
 // Instantiate adapters and generator
@@ -73,10 +75,14 @@ strategyConfig.slot = "strategy-config";
 const deckView = document.createElement("deck-view") as DeckView;
 deckView.slot = "deck-view";
 
+const creditsPage = document.createElement("credits-page") as CreditsPage;
+creditsPage.slot = "credits-page";
+
 // Assemble
 shell.appendChild(commanderSearch);
 shell.appendChild(strategyConfig);
 shell.appendChild(deckView);
+shell.appendChild(creditsPage);
 app.appendChild(shell);
 
 // ---------------------------------------------------------------------------
@@ -121,4 +127,9 @@ deckView.addEventListener("regenerate-deck", (() => {
   if (generateBtn) {
     generateBtn.click();
   }
+}) as EventListener);
+
+// Credits page
+shell.addEventListener("open-credits", (() => {
+  creditsPage.show();
 }) as EventListener);

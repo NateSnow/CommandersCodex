@@ -142,6 +142,53 @@ template.innerHTML = `
   @media (min-width: 1800px) {
     .app-layout { grid-template-columns: 520px 1fr; }
   }
+
+  /* Footer */
+  .app-footer {
+    background: #0a0a12;
+    border-top: 1px solid #2a2840;
+    padding: 14px 20px;
+    text-align: center;
+    font-size: 0.8rem;
+    color: #6b6580;
+    position: relative;
+  }
+
+  .app-footer::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 10%, rgba(139,92,246,0.2) 50%, transparent 90%);
+  }
+
+  .footer-content {
+    max-width: 2560px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .footer-sep { color: #2a2840; }
+
+  .footer-link {
+    color: #8b5cf6;
+    text-decoration: none;
+    cursor: pointer;
+    transition: color 0.2s;
+    background: none;
+    border: none;
+    font-family: inherit;
+    font-size: inherit;
+    padding: 0;
+  }
+
+  .footer-link:hover { color: #a78bfa; text-decoration: underline; }
+  .footer-link:focus-visible { outline: 2px solid #8b5cf6; outline-offset: 2px; }
 </style>
 
 <header class="app-header">
@@ -162,6 +209,20 @@ template.innerHTML = `
     <slot name="deck-view"></slot>
   </section>
 </main>
+
+<footer class="app-footer">
+  <div class="footer-content">
+    <span>Commander's Codex is unofficial fan content.</span>
+    <span class="footer-sep">·</span>
+    <span>Not affiliated with Wizards of the Coast.</span>
+    <span class="footer-sep">·</span>
+    <button class="footer-link" id="credits-link" aria-label="View credits and attribution">Credits & Attribution</button>
+    <span class="footer-sep">·</span>
+    <a class="footer-link" href="https://github.com/NateSnow/CommandersCodex" target="_blank" rel="noopener noreferrer">GitHub</a>
+  </div>
+</footer>
+
+<slot name="credits-page"></slot>
 `;
 
 export class AppShell extends HTMLElement {
@@ -169,5 +230,11 @@ export class AppShell extends HTMLElement {
     super();
     const shadow = this.attachShadow({ mode: "open" });
     shadow.appendChild(template.content.cloneNode(true));
+  }
+
+  connectedCallback(): void {
+    this.shadowRoot!.getElementById("credits-link")!.addEventListener("click", () => {
+      this.dispatchEvent(new CustomEvent("open-credits", { bubbles: true, composed: true }));
+    });
   }
 }
