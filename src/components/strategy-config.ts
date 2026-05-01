@@ -1,8 +1,8 @@
 /**
- * `<strategy-config>` Web Component — Spellbook Theme
+ * `<strategy-config>` Web Component — Magical Glowing Theme
  *
  * Configure deck generation: archetype, bracket, combos, land count.
- * Styled as a page of arcane instructions in the spellbook.
+ * Styled with a magical glowing aesthetic.
  */
 
 import type { Archetype, BracketLevel } from "../models/generation.js";
@@ -15,7 +15,7 @@ template.innerHTML = `
   :host {
     display: block;
     font-family: 'Crimson Text', Georgia, serif;
-    color: #f4e8c1;
+    color: #e8e0f0;
   }
 
   * { box-sizing: border-box; }
@@ -27,14 +27,14 @@ template.innerHTML = `
     font-family: 'Cinzel', Georgia, serif;
     font-size: 1.1rem;
     font-weight: 600;
-    color: #e8d48b;
+    color: #f0d078;
     letter-spacing: 0.04em;
     text-shadow: 0 1px 3px rgba(0,0,0,0.4);
   }
 
   .divider {
     text-align: center;
-    color: #5c4033;
+    color: #2a2840;
     font-size: 0.8rem;
     letter-spacing: 0.4em;
     margin: 4px 0 16px;
@@ -47,7 +47,7 @@ template.innerHTML = `
     font-family: 'Cinzel', Georgia, serif;
     font-size: 0.75rem;
     font-weight: 600;
-    color: #c9a84c;
+    color: #d4a843;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     margin-bottom: 8px;
@@ -62,8 +62,8 @@ template.innerHTML = `
 
   .archetype-option {
     padding: 8px 10px;
-    background: rgba(61,43,31,0.4);
-    border: 1px solid #5c4033;
+    background: rgba(30,28,48,0.5);
+    border: 1px solid #2a2840;
     border-radius: 6px;
     cursor: pointer;
     transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
@@ -72,38 +72,38 @@ template.innerHTML = `
   }
 
   .archetype-option:hover {
-    border-color: #7a6652;
-    background: rgba(61,43,31,0.6);
+    border-color: #3a3860;
+    background: rgba(30,28,48,0.7);
   }
 
   .archetype-option:focus-visible {
-    outline: 2px solid #c9a84c;
+    outline: 2px solid #d4a843;
     outline-offset: 2px;
   }
 
   .archetype-option.selected {
-    border-color: #c9a84c;
-    background: rgba(201,168,76,0.1);
-    box-shadow: 0 0 12px rgba(201,168,76,0.1);
+    border-color: #d4a843;
+    background: rgba(139,92,246,0.1);
+    box-shadow: 0 0 15px rgba(139,92,246,0.15);
   }
 
   .archetype-name {
     font-family: 'Cinzel', Georgia, serif;
     font-size: 0.8rem;
     font-weight: 600;
-    color: #e8d48b;
+    color: #f0d078;
     margin-bottom: 2px;
   }
 
   .archetype-desc {
     font-size: 0.65rem;
-    color: #8b7355;
+    color: #6b6580;
     line-height: 1.3;
     font-style: italic;
   }
 
-  .archetype-option.selected .archetype-name { color: #f0c040; }
-  .archetype-option.selected .archetype-desc { color: #c9a84c; }
+  .archetype-option.selected .archetype-name { color: #f0d078; }
+  .archetype-option.selected .archetype-desc { color: #d4a843; }
 
   /* Bracket selector */
   .bracket-options { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -112,8 +112,8 @@ template.innerHTML = `
     flex: 1;
     min-width: 100px;
     padding: 8px 10px;
-    background: rgba(61,43,31,0.4);
-    border: 1px solid #5c4033;
+    background: rgba(30,28,48,0.5);
+    border: 1px solid #2a2840;
     border-radius: 6px;
     cursor: pointer;
     transition: border-color 0.2s, background 0.2s;
@@ -121,30 +121,30 @@ template.innerHTML = `
     text-align: center;
   }
 
-  .bracket-option:hover { border-color: #7a6652; background: rgba(61,43,31,0.6); }
-  .bracket-option:focus-visible { outline: 2px solid #c9a84c; outline-offset: 2px; }
+  .bracket-option:hover { border-color: #3a3860; background: rgba(30,28,48,0.7); }
+  .bracket-option:focus-visible { outline: 2px solid #d4a843; outline-offset: 2px; }
 
   .bracket-option.selected {
-    border-color: #c9a84c;
-    background: rgba(201,168,76,0.1);
+    border-color: #d4a843;
+    background: rgba(139,92,246,0.1);
   }
 
   .bracket-number {
     font-family: 'Cinzel', Georgia, serif;
     font-size: 1.1rem;
     font-weight: 700;
-    color: #e8d48b;
+    color: #f0d078;
   }
 
   .bracket-desc {
     font-size: 0.65rem;
-    color: #8b7355;
+    color: #6b6580;
     margin-top: 2px;
     font-style: italic;
   }
 
-  .bracket-option.selected .bracket-number { color: #f0c040; }
-  .bracket-option.selected .bracket-desc { color: #c9a84c; }
+  .bracket-option.selected .bracket-number { color: #f0d078; }
+  .bracket-option.selected .bracket-desc { color: #d4a843; }
 
   /* Toggle */
   .toggle-row {
@@ -155,32 +155,32 @@ template.innerHTML = `
     gap: 12px;
   }
 
-  .toggle-label-text { font-size: 0.95rem; color: #f4e8c1; }
-  .toggle-sublabel { font-size: 0.75rem; color: #8b7355; margin-top: 2px; font-style: italic; }
+  .toggle-label-text { font-size: 0.95rem; color: #e8e0f0; }
+  .toggle-sublabel { font-size: 0.75rem; color: #6b6580; margin-top: 2px; font-style: italic; }
 
   .toggle-switch { position: relative; width: 48px; height: 26px; flex-shrink: 0; }
   .toggle-switch input { opacity: 0; width: 0; height: 0; }
 
   .toggle-slider {
     position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-    background: #5c4033; border-radius: 26px; transition: background 0.3s;
+    background: #2a2840; border-radius: 26px; transition: background 0.3s;
   }
 
   .toggle-slider::before {
     content: ""; position: absolute; height: 20px; width: 20px; left: 3px; bottom: 3px;
-    background: #f4e8c1; border-radius: 50%; transition: transform 0.3s;
+    background: #e8e0f0; border-radius: 50%; transition: transform 0.3s;
   }
 
-  .toggle-switch input:checked + .toggle-slider { background: #c9a84c; }
+  .toggle-switch input:checked + .toggle-slider { background: #8b5cf6; }
   .toggle-switch input:checked + .toggle-slider::before { transform: translateX(22px); }
-  .toggle-switch input:focus-visible + .toggle-slider { outline: 2px solid #c9a84c; outline-offset: 2px; }
+  .toggle-switch input:focus-visible + .toggle-slider { outline: 2px solid #d4a843; outline-offset: 2px; }
 
   /* Slider */
   .slider-row { display: flex; align-items: center; gap: 12px; }
-  .slider-row input[type="range"] { flex: 1; accent-color: #c9a84c; min-height: 44px; }
+  .slider-row input[type="range"] { flex: 1; accent-color: #d4a843; min-height: 44px; }
   .slider-value {
     font-family: 'Cinzel', Georgia, serif;
-    font-size: 1rem; font-weight: 700; color: #e8d48b; min-width: 30px; text-align: center;
+    font-size: 1rem; font-weight: 700; color: #f0d078; min-width: 30px; text-align: center;
   }
 
   /* Generate button */
@@ -189,39 +189,39 @@ template.innerHTML = `
     width: 100%; padding: 14px 24px;
     font-family: 'Cinzel', Georgia, serif;
     font-size: 1.05rem; font-weight: 700; letter-spacing: 0.05em;
-    color: #1a0f0a;
-    background: linear-gradient(180deg, #e8d48b 0%, #c9a84c 100%);
-    border: 2px solid #8b6914;
+    color: #fff;
+    background: linear-gradient(180deg, #a78bfa 0%, #8b5cf6 100%);
+    border: 2px solid #6d28d9;
     border-radius: 8px; cursor: pointer; min-height: 48px;
     transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
     margin-top: 8px;
-    text-shadow: 0 1px 0 rgba(255,255,255,0.2);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.2);
+    text-shadow: 0 0 10px rgba(139,92,246,0.5);
+    box-shadow: 0 4px 20px rgba(139,92,246,0.3), 0 0 40px rgba(139,92,246,0.1);
   }
 
   .btn-generate:hover:not(:disabled) {
-    background: linear-gradient(180deg, #f0dc9b 0%, #d4b45c 100%);
+    background: linear-gradient(180deg, #c4b5fd 0%, #a78bfa 100%);
     transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.3);
+    box-shadow: 0 6px 30px rgba(139,92,246,0.4), 0 0 60px rgba(139,92,246,0.15);
   }
 
   .btn-generate:active:not(:disabled) { transform: translateY(0); }
-  .btn-generate:focus-visible { outline: 2px solid #c9a84c; outline-offset: 2px; }
+  .btn-generate:focus-visible { outline: 2px solid #d4a843; outline-offset: 2px; }
 
   .btn-generate:disabled {
-    background: linear-gradient(180deg, #5c4033 0%, #3d2b1f 100%);
-    border-color: #3d2b1f;
-    color: #8b7355; cursor: not-allowed; opacity: 0.7; transform: none;
+    background: linear-gradient(180deg, #2a2840 0%, #1e1c30 100%);
+    border-color: #2a2840;
+    color: #6b6580; cursor: not-allowed; opacity: 0.7; transform: none;
     box-shadow: none; text-shadow: none;
   }
 
   .btn-generate.generating {
-    background: linear-gradient(180deg, #5c4033 0%, #3d2b1f 100%);
-    border-color: #5c4033; color: #c9a84c; cursor: wait;
+    background: linear-gradient(180deg, #2a2840 0%, #1e1c30 100%);
+    border-color: #2a2840; color: #8b5cf6; cursor: wait;
   }
 
   .no-commander-hint {
-    display: none; font-size: 0.85rem; color: #8b7355; text-align: center;
+    display: none; font-size: 0.85rem; color: #6b6580; text-align: center;
     padding: 8px; font-style: italic;
   }
 

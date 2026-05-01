@@ -1,9 +1,5 @@
 /**
- * `<app-shell>` Web Component — Spellbook Theme
- *
- * Top-level layout styled as an ancient spellbook.
- * Left page: commander search + strategy config.
- * Right page: generated deck view.
+ * `<app-shell>` — Magical Glowing Spellbook layout.
  */
 
 const template = document.createElement("template");
@@ -12,17 +8,16 @@ template.innerHTML = `
   :host {
     display: block;
     font-family: 'Crimson Text', Georgia, serif;
-    color: #f4e8c1;
+    color: #e8e0f0;
     min-height: 100vh;
-    background: #1a0f0a;
+    background: #0a0a12;
   }
 
   * { box-sizing: border-box; }
 
-  /* ---- Header / Book Spine ---- */
   .app-header {
-    background: linear-gradient(180deg, #2c1810 0%, #1a0f0a 100%);
-    border-bottom: 3px solid #5c4033;
+    background: linear-gradient(180deg, #151422 0%, #0f0e1a 100%);
+    border-bottom: 1px solid #2a2840;
     padding: 12px 20px;
     display: flex;
     align-items: center;
@@ -30,17 +25,18 @@ template.innerHTML = `
     position: sticky;
     top: 0;
     z-index: 100;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    box-shadow: 0 4px 30px rgba(0,0,0,0.5), 0 1px 0 rgba(139,92,246,0.1);
   }
 
+  /* Glowing bottom edge */
   .app-header::after {
     content: '';
     position: absolute;
-    bottom: -3px;
-    left: 0;
-    right: 0;
+    bottom: -1px;
+    left: 0; right: 0;
     height: 1px;
-    background: linear-gradient(90deg, transparent, #c9a84c, transparent);
+    background: linear-gradient(90deg, transparent 5%, rgba(139,92,246,0.4) 30%, rgba(212,168,67,0.5) 50%, rgba(139,92,246,0.4) 70%, transparent 95%);
+    filter: blur(0.5px);
   }
 
   .app-title {
@@ -48,37 +44,27 @@ template.innerHTML = `
     font-family: 'Cinzel', Georgia, serif;
     font-size: 1.4rem;
     font-weight: 700;
-    color: #e8d48b;
+    color: #f0d078;
     white-space: nowrap;
-    letter-spacing: 0.05em;
-    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    letter-spacing: 0.06em;
+    text-shadow: 0 0 20px rgba(212,168,67,0.3), 0 2px 4px rgba(0,0,0,0.5);
   }
 
   .app-title-icon {
     font-size: 1.3rem;
     margin-right: 4px;
+    filter: drop-shadow(0 0 6px rgba(139,92,246,0.5));
   }
 
   .app-subtitle {
     font-family: 'Crimson Text', Georgia, serif;
     font-size: 0.8rem;
-    color: #8b7355;
+    color: #8b5cf6;
     font-style: italic;
     margin-left: 8px;
+    text-shadow: 0 0 10px rgba(139,92,246,0.3);
   }
 
-  /* ---- Ornamental divider ---- */
-  .ornament {
-    text-align: center;
-    color: #5c4033;
-    font-size: 0.9rem;
-    letter-spacing: 0.3em;
-    padding: 0;
-    line-height: 1;
-    user-select: none;
-  }
-
-  /* ---- Main layout: the open book ---- */
   .app-layout {
     display: grid;
     gap: 0;
@@ -88,54 +74,37 @@ template.innerHTML = `
   }
 
   .page {
-    background:
-      linear-gradient(135deg, rgba(60,43,31,0.4) 0%, rgba(44,24,16,0.9) 100%);
+    background: rgba(15,14,26,0.95);
     min-width: 0;
     position: relative;
   }
 
-  /* Parchment inner glow on pages */
-  .page::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background:
-      radial-gradient(ellipse at 50% 0%, rgba(244,232,193,0.03) 0%, transparent 60%);
-  }
-
   .left-page {
-    border-right: 1px solid #3d2b1f;
+    border-right: 1px solid #2a2840;
     overflow-y: auto;
   }
 
-  .right-page {
-    overflow-y: auto;
-    background:
-      linear-gradient(135deg, rgba(44,24,16,0.95) 0%, rgba(26,15,10,1) 100%);
-  }
-
-  /* Book spine shadow between pages */
+  /* Magical glow on the spine */
   .left-page::after {
     content: '';
     position: absolute;
-    top: 0;
-    right: -8px;
-    bottom: 0;
-    width: 8px;
-    background: linear-gradient(90deg, rgba(0,0,0,0.3), transparent);
+    top: 0; right: -6px; bottom: 0;
+    width: 12px;
+    background: linear-gradient(90deg, rgba(139,92,246,0.05), transparent);
     pointer-events: none;
     z-index: 1;
   }
 
-  /* ---- Mobile: single column (stacked pages) ---- */
+  .right-page {
+    overflow-y: auto;
+    background: rgba(10,10,18,0.98);
+  }
+
+  /* Mobile */
   .app-layout {
     grid-template-columns: 1fr;
     grid-template-rows: auto auto 1fr;
-    grid-template-areas:
-      "commander"
-      "strategy"
-      "deck";
+    grid-template-areas: "commander" "strategy" "deck";
   }
 
   .page-commander { grid-area: commander; }
@@ -146,54 +115,38 @@ template.innerHTML = `
     position: static;
     max-height: none;
     border-right: none;
-    border-bottom: 1px solid #3d2b1f;
+    border-bottom: 1px solid #2a2840;
   }
 
-  .left-page::after {
-    display: none;
-  }
+  .left-page::after { display: none; }
 
-  /* ---- Tablet (768px+): two-column book ---- */
   @media (min-width: 768px) {
     .app-layout {
       grid-template-columns: 400px 1fr;
       grid-template-rows: auto 1fr;
-      grid-template-areas:
-        "commander deck"
-        "strategy  deck";
+      grid-template-areas: "commander deck" "strategy deck";
     }
-
     .left-page {
-      position: sticky;
-      top: 52px;
+      position: sticky; top: 52px;
       max-height: calc(100vh - 52px);
-      border-right: 1px solid #3d2b1f;
+      border-right: 1px solid #2a2840;
       border-bottom: none;
     }
-
-    .left-page::after {
-      display: block;
-    }
+    .left-page::after { display: block; }
   }
 
-  /* ---- Desktop (1200px+) ---- */
   @media (min-width: 1200px) {
-    .app-layout {
-      grid-template-columns: 460px 1fr;
-    }
+    .app-layout { grid-template-columns: 460px 1fr; }
   }
 
-  /* ---- Ultra-wide (1800px+) ---- */
   @media (min-width: 1800px) {
-    .app-layout {
-      grid-template-columns: 520px 1fr;
-    }
+    .app-layout { grid-template-columns: 520px 1fr; }
   }
 </style>
 
 <header class="app-header">
   <h1 class="app-title">
-    <span class="app-title-icon">📖</span>Commander's Codex
+    <span class="app-title-icon">✦</span>Commander's Codex
     <span class="app-subtitle">~ Deck Generator ~</span>
   </h1>
 </header>
@@ -202,11 +155,9 @@ template.innerHTML = `
   <section class="page left-page page-commander" aria-label="Commander selection">
     <slot name="commander-search"></slot>
   </section>
-
   <section class="page left-page page-strategy" aria-label="Strategy configuration">
     <slot name="strategy-config"></slot>
   </section>
-
   <section class="page right-page page-deck" aria-label="Generated deck">
     <slot name="deck-view"></slot>
   </section>

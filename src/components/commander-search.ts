@@ -1,7 +1,7 @@
 /**
- * `<commander-search>` Web Component — Spellbook Theme
+ * `<commander-search>` Web Component — Magical Glowing Theme
  *
- * Search for and select a Commander. Styled as a page in the spellbook.
+ * Search for and select a Commander. Styled with a magical glowing aesthetic.
  */
 
 import type { Card, Color } from "../models/card.js";
@@ -23,7 +23,7 @@ template.innerHTML = `
   :host {
     display: block;
     font-family: 'Crimson Text', Georgia, serif;
-    color: #f4e8c1;
+    color: #e8e0f0;
   }
 
   * { box-sizing: border-box; }
@@ -35,7 +35,7 @@ template.innerHTML = `
     font-family: 'Cinzel', Georgia, serif;
     font-size: 1.1rem;
     font-weight: 600;
-    color: #e8d48b;
+    color: #f0d078;
     letter-spacing: 0.04em;
     text-shadow: 0 1px 3px rgba(0,0,0,0.4);
   }
@@ -43,7 +43,7 @@ template.innerHTML = `
   /* Ornamental divider */
   .divider {
     text-align: center;
-    color: #5c4033;
+    color: #2a2840;
     font-size: 0.8rem;
     letter-spacing: 0.4em;
     margin: 4px 0 14px;
@@ -56,22 +56,22 @@ template.innerHTML = `
     padding: 12px 16px;
     font-family: 'Crimson Text', Georgia, serif;
     font-size: 1rem;
-    border: 1px solid #5c4033;
+    border: 1px solid #2a2840;
     border-radius: 6px;
-    background: rgba(26,15,10,0.6);
-    color: #f4e8c1;
+    background: rgba(15,14,26,0.7);
+    color: #e8e0f0;
     outline: none;
     min-height: 44px;
     transition: border-color 0.3s, box-shadow 0.3s;
   }
 
   input[type="search"]:focus {
-    border-color: #c9a84c;
-    box-shadow: 0 0 12px rgba(201,168,76,0.2);
+    border-color: #d4a843;
+    box-shadow: 0 0 12px rgba(139,92,246,0.15);
   }
 
   input[type="search"]::placeholder {
-    color: #8b7355;
+    color: #6b6580;
     font-style: italic;
   }
 
@@ -82,7 +82,7 @@ template.innerHTML = `
     display: none;
     text-align: center;
     padding: 24px;
-    color: #c4a882;
+    color: #a09ab0;
     font-style: italic;
   }
 
@@ -92,8 +92,8 @@ template.innerHTML = `
     display: inline-block;
     width: 24px;
     height: 24px;
-    border: 3px solid #5c4033;
-    border-top-color: #c9a84c;
+    border: 3px solid #2a2840;
+    border-top-color: #d4a843;
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
     margin-bottom: 8px;
@@ -106,10 +106,10 @@ template.innerHTML = `
     display: none;
     padding: 12px 16px;
     margin-bottom: 16px;
-    background: rgba(196,77,42,0.15);
-    border: 1px solid #6a2a2a;
+    background: rgba(249,115,22,0.1);
+    border: 1px solid #4a2020;
     border-radius: 6px;
-    color: #e8a090;
+    color: #fca5a5;
     font-size: 0.9rem;
   }
 
@@ -126,7 +126,7 @@ template.innerHTML = `
     cursor: pointer;
     border-radius: 8px;
     overflow: hidden;
-    background: rgba(61,43,31,0.5);
+    background: rgba(30,28,48,0.5);
     border: 2px solid transparent;
     transition: border-color 0.2s, transform 0.15s, box-shadow 0.2s;
     min-height: 44px;
@@ -134,9 +134,9 @@ template.innerHTML = `
 
   .card-result:hover,
   .card-result:focus-visible {
-    border-color: #c9a84c;
+    border-color: #d4a843;
     transform: translateY(-3px);
-    box-shadow: 0 6px 20px rgba(201,168,76,0.15);
+    box-shadow: 0 6px 20px rgba(139,92,246,0.12);
   }
 
   .card-result img {
@@ -145,7 +145,7 @@ template.innerHTML = `
     border-radius: 6px 6px 0 0;
     aspect-ratio: 488 / 680;
     object-fit: cover;
-    background: #1a0f0a;
+    background: #0f0e1a;
   }
 
   .card-result .card-info { padding: 6px 8px; }
@@ -154,7 +154,7 @@ template.innerHTML = `
     font-family: 'Cinzel', Georgia, serif;
     font-size: 0.7rem;
     font-weight: 600;
-    color: #e8d48b;
+    color: #f0d078;
     margin-bottom: 2px;
     white-space: nowrap;
     overflow: hidden;
@@ -163,7 +163,7 @@ template.innerHTML = `
 
   .card-result .card-type {
     font-size: 0.65rem;
-    color: #8b7355;
+    color: #6b6580;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -176,7 +176,7 @@ template.innerHTML = `
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    border: 1px solid #5c4033;
+    border: 1px solid #2a2840;
     flex-shrink: 0;
   }
 
@@ -185,8 +185,8 @@ template.innerHTML = `
     display: none;
     padding: 14px;
     margin-bottom: 14px;
-    background: rgba(107,62,35,0.15);
-    border: 1px solid #5c4033;
+    background: rgba(139,92,246,0.08);
+    border: 1px solid #2a2840;
     border-radius: 8px;
     position: relative;
   }
@@ -196,7 +196,7 @@ template.innerHTML = `
     position: absolute;
     inset: 0;
     border-radius: 8px;
-    border: 1px solid rgba(201,168,76,0.15);
+    border: 1px solid rgba(139,92,246,0.12);
     pointer-events: none;
   }
 
@@ -220,7 +220,7 @@ template.innerHTML = `
     font-size: 0.65rem;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    color: #c9a84c;
+    color: #d4a843;
     margin-bottom: 2px;
   }
 
@@ -228,20 +228,20 @@ template.innerHTML = `
     font-family: 'Cinzel', Georgia, serif;
     font-size: 1rem;
     font-weight: 700;
-    color: #e8d48b;
+    color: #f0d078;
     margin-bottom: 2px;
   }
 
   .selected-commander .commander-type {
     font-size: 0.85rem;
-    color: #c4a882;
+    color: #a09ab0;
     font-style: italic;
     margin-bottom: 6px;
   }
 
   .selected-commander .color-identity-label {
     font-size: 0.7rem;
-    color: #8b7355;
+    color: #6b6580;
     margin-bottom: 3px;
   }
 
@@ -250,25 +250,25 @@ template.innerHTML = `
     padding: 6px 14px;
     font-family: 'Crimson Text', Georgia, serif;
     font-size: 0.8rem;
-    background: rgba(92,64,51,0.4);
-    border: 1px solid #5c4033;
+    background: rgba(42,40,64,0.5);
+    border: 1px solid #2a2840;
     border-radius: 6px;
-    color: #c4a882;
+    color: #a09ab0;
     cursor: pointer;
     min-height: 32px;
     transition: background 0.2s, border-color 0.2s;
   }
 
   .btn-change:hover {
-    background: rgba(92,64,51,0.7);
-    border-color: #c9a84c;
+    background: rgba(42,40,64,0.8);
+    border-color: #d4a843;
   }
 
   .no-results {
     display: none;
     text-align: center;
     padding: 24px;
-    color: #8b7355;
+    color: #6b6580;
     font-style: italic;
   }
 
@@ -277,13 +277,13 @@ template.innerHTML = `
   .img-placeholder {
     width: 100%;
     aspect-ratio: 488 / 680;
-    background: #2c1810;
+    background: #151422;
     display: flex;
     align-items: center;
     justify-content: center;
     text-align: center;
     font-size: 0.7rem;
-    color: #8b7355;
+    color: #6b6580;
     padding: 8px;
     border-radius: 6px 6px 0 0;
   }

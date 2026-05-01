@@ -1,67 +1,42 @@
 /**
- * Global styles — Spellbook Theme for Commander's Codex.
+ * Global styles — Magical Glowing Spellbook Theme.
  *
- * Warm parchment tones, ornate serif typography, aged paper textures,
- * and magical accents throughout.
+ * Deep dark backgrounds with ethereal glowing particles,
+ * magical purple/gold/teal accents, and luminous effects.
  */
-
-/* -----------------------------------------------------------------------
-   Fonts — Google Fonts loaded via @import
-   ----------------------------------------------------------------------- */
 
 @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400&family=MedievalSharp&display=swap');
 
-/* -----------------------------------------------------------------------
-   CSS Custom Properties
-   ----------------------------------------------------------------------- */
-
 :root {
-  /* Spellbook palette */
-  --color-parchment: #f4e8c1;
-  --color-parchment-dark: #e8d5a3;
-  --color-parchment-light: #faf3e0;
-  --color-ink: #2c1810;
-  --color-ink-light: #4a3728;
-  --color-ink-faded: #7a6652;
-  --color-leather: #3d2b1f;
-  --color-leather-light: #5c4033;
-  --color-leather-dark: #1a0f0a;
-  --color-gold: #c9a84c;
-  --color-gold-light: #e8d48b;
-  --color-gold-dark: #8b6914;
-  --color-accent: #8b2500;
-  --color-accent-light: #c44d2a;
-  --color-magic-purple: #6b3fa0;
-  --color-magic-blue: #1a5276;
-  --color-magic-glow: #f0c040;
+  /* Core magical palette */
+  --color-void: #0a0a12;
+  --color-deep: #0f0e1a;
+  --color-surface: #151422;
+  --color-surface-light: #1e1c30;
+  --color-surface-hover: #252340;
 
-  /* Surfaces */
-  --color-bg: #1a0f0a;
-  --color-surface: #2c1810;
-  --color-surface-alt: #3d2b1f;
-  --color-surface-hover: #4a3728;
+  /* Magical accents */
+  --color-gold: #d4a843;
+  --color-gold-light: #f0d078;
+  --color-gold-glow: rgba(212, 168, 67, 0.4);
+  --color-purple: #8b5cf6;
+  --color-purple-light: #a78bfa;
+  --color-purple-glow: rgba(139, 92, 246, 0.3);
+  --color-teal: #2dd4bf;
+  --color-teal-glow: rgba(45, 212, 191, 0.3);
+  --color-ember: #f97316;
+  --color-ember-glow: rgba(249, 115, 22, 0.3);
 
   /* Text */
-  --color-text: #f4e8c1;
-  --color-text-secondary: #c4a882;
-  --color-text-muted: #8b7355;
-  --color-text-heading: #e8d48b;
+  --color-text: #e8e0f0;
+  --color-text-secondary: #a09ab0;
+  --color-text-muted: #6b6580;
+  --color-text-heading: #f0d078;
 
   /* Borders */
-  --color-border: #5c4033;
-  --color-border-light: #7a6652;
-  --color-border-gold: #c9a84c;
-
-  /* Feedback */
-  --color-success: #6b8e23;
-  --color-success-bg: #2a3a1a;
-  --color-success-border: #4a6a2a;
-  --color-error: #c44d2a;
-  --color-error-bg: #3a1a1a;
-  --color-error-border: #6a2a2a;
-  --color-warning: #c9a84c;
-  --color-warning-bg: #3a3020;
-  --color-warning-border: #6a5a30;
+  --color-border: #2a2840;
+  --color-border-light: #3a3860;
+  --color-border-glow: rgba(139, 92, 246, 0.2);
 
   /* Mana colors */
   --color-mana-white: #f9faf4;
@@ -71,42 +46,13 @@
   --color-mana-green: #00733e;
   --color-mana-colorless: #ccc2c0;
 
-  /* Spacing */
-  --space-xs: 4px;
-  --space-sm: 8px;
-  --space-md: 16px;
-  --space-lg: 24px;
-  --space-xl: 32px;
-
   /* Typography */
   --font-heading: 'Cinzel', 'Georgia', serif;
   --font-body: 'Crimson Text', 'Georgia', serif;
   --font-accent: 'MedievalSharp', 'Georgia', cursive;
-  --font-mono: 'Courier New', monospace;
-  --font-size-xs: 0.7rem;
-  --font-size-sm: 0.85rem;
-  --font-size-base: 1rem;
-  --font-size-lg: 1.25rem;
-  --font-size-xl: 1.5rem;
-
-  /* Border radius */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-
-  /* Touch target minimum */
-  --touch-target: 44px;
 }
 
-/* -----------------------------------------------------------------------
-   Reset & Base Styles
-   ----------------------------------------------------------------------- */
-
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
+*, *::before, *::after { box-sizing: border-box; }
 
 html {
   font-size: 16px;
@@ -114,78 +60,89 @@ html {
   text-size-adjust: 100%;
 }
 
-html,
-body {
-  margin: 0;
-  padding: 0;
-  height: 100%;
-  width: 100%;
+html, body {
+  margin: 0; padding: 0;
+  height: 100%; width: 100%;
   overflow-x: hidden;
 }
 
 body {
   font-family: var(--font-body);
-  background-color: var(--color-bg);
+  background-color: var(--color-void);
   color: var(--color-text);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  /* Subtle parchment texture via gradient */
-  background-image:
-    radial-gradient(ellipse at 20% 50%, rgba(60, 40, 20, 0.3) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 50%, rgba(60, 40, 20, 0.2) 0%, transparent 50%);
+  position: relative;
 }
 
 #app {
   min-height: 100%;
   width: 100%;
+  position: relative;
+  z-index: 1;
 }
 
 /* -----------------------------------------------------------------------
-   Scrollbar Styling (leather theme)
+   Floating Magical Particles Background
    ----------------------------------------------------------------------- */
 
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(1.5px 1.5px at 10% 20%, rgba(139,92,246,0.5) 50%, transparent 50%),
+    radial-gradient(1px 1px at 25% 60%, rgba(212,168,67,0.4) 50%, transparent 50%),
+    radial-gradient(1.5px 1.5px at 40% 15%, rgba(45,212,191,0.4) 50%, transparent 50%),
+    radial-gradient(1px 1px at 55% 75%, rgba(139,92,246,0.3) 50%, transparent 50%),
+    radial-gradient(2px 2px at 70% 30%, rgba(212,168,67,0.5) 50%, transparent 50%),
+    radial-gradient(1px 1px at 85% 55%, rgba(45,212,191,0.3) 50%, transparent 50%),
+    radial-gradient(1.5px 1.5px at 15% 85%, rgba(249,115,22,0.3) 50%, transparent 50%),
+    radial-gradient(1px 1px at 60% 45%, rgba(139,92,246,0.4) 50%, transparent 50%),
+    radial-gradient(1.5px 1.5px at 90% 80%, rgba(212,168,67,0.3) 50%, transparent 50%),
+    radial-gradient(1px 1px at 35% 35%, rgba(45,212,191,0.5) 50%, transparent 50%),
+    radial-gradient(2px 2px at 50% 90%, rgba(139,92,246,0.4) 50%, transparent 50%),
+    radial-gradient(1px 1px at 75% 10%, rgba(249,115,22,0.3) 50%, transparent 50%);
+  animation: particleDrift 20s ease-in-out infinite alternate;
 }
 
-::-webkit-scrollbar-track {
-  background: var(--color-leather-dark);
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(139,92,246,0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 30%, rgba(212,168,67,0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(45,212,191,0.04) 0%, transparent 40%);
 }
 
+@keyframes particleDrift {
+  0% { transform: translateY(0) translateX(0); }
+  50% { transform: translateY(-15px) translateX(8px); }
+  100% { transform: translateY(5px) translateX(-5px); }
+}
+
+/* -----------------------------------------------------------------------
+   Scrollbar
+   ----------------------------------------------------------------------- */
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--color-void); }
 ::-webkit-scrollbar-thumb {
-  background: var(--color-leather-light);
-  border-radius: var(--radius-sm);
-  border: 2px solid var(--color-leather-dark);
+  background: var(--color-border-light);
+  border-radius: 4px;
 }
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-ink-faded);
-}
-
-/* -----------------------------------------------------------------------
-   Focus Styles
-   ----------------------------------------------------------------------- */
+::-webkit-scrollbar-thumb:hover { background: var(--color-purple); }
 
 :focus-visible {
-  outline: 2px solid var(--color-gold);
+  outline: 2px solid var(--color-purple);
   outline-offset: 2px;
 }
 
-/* -----------------------------------------------------------------------
-   Responsive Breakpoints
-   ----------------------------------------------------------------------- */
-
-@media (min-width: 1440px) {
-  html {
-    font-size: 17px;
-  }
-}
-
-@media (min-width: 2560px) {
-  html {
-    font-size: 18px;
-  }
-}
+@media (min-width: 1440px) { html { font-size: 17px; } }
+@media (min-width: 2560px) { html { font-size: 18px; } }
