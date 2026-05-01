@@ -436,7 +436,7 @@ export function createScryfallAdapter(): ScryfallAdapter {
 
     async searchRaw(query: string): Promise<ScryfallSearchResult> {
       const encoded = encodeURIComponent(query);
-      const url = `https://api.scryfall.com/cards/search?q=${encoded}`;
+      const url = `https://api.scryfall.com/cards/search?q=${encoded}&order=edhrec`;
       return fetchSearchResults(url);
     },
 

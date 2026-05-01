@@ -202,7 +202,19 @@ export class DeckGenerator {
       const nonLandTarget = targetNonCommander - landCount;
       const cappedPool = cardPool.slice(0, Math.max(nonLandTarget + 20, 80));
 
-      const categorized = allocate(cappedPool, template, comboCards);
+      // Shuffle the capped pool to ensure variety across regenerations.
+      // We keep the top ~30% in place (highest EDHREC synergy / first results)
+      // and shuffle the rest so the allocator picks different cards each time.
+      const keepTop = Math.floor(cappedPool.length * 0.3);
+      const topCards = cappedPool.slice(0, keepTop);
+      const restCards = cappedPool.slice(keepTop);
+      for (let i = restCards.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [restCards[i], restCards[j]] = [restCards[j], restCards[i]];
+      }
+      const shuffledPool = [...topCards, ...restCards];
+
+      const categorized = allocate(shuffledPool, template, comboCards);
 
       // --- Phase 5: Build mana base (80%) ---
       dispatch("generation-progress", {
@@ -406,9 +418,11 @@ export class DeckGenerator {
     existingNames: Set<string>,
     count: number,
   ): Promise<DeckEntry[]> {
-    const result = await this.scryfallAdapter.searchCards(
-      "f:commander",
-      colorIdentity,
+    const ci = colorIdentity.length > 0
+      ? `id<=${colorIdentity.map((c) => c.toLowerCase()).join("")}`
+      : "id<=c";
+    const result = await this.scryfallAdapter.searchRaw(
+      `f:commander ${ci} -t:land`,
     );
 
     const entries: DeckEntry[] = [];
