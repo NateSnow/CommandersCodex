@@ -1,238 +1,222 @@
 /**
- * `<app-shell>` Web Component
+ * `<app-shell>` Web Component — Spellbook Theme
  *
- * Top-level layout shell that arranges all panels in a responsive
- * CSS Grid layout. Desktop (≥768px) uses a multi-column layout with
- * search/recommendations on the left and deck list/stats on the right.
- * Mobile (<768px) uses a stacked single-column layout.
- *
- * Supports screen widths from 320px to 2560px.
- *
- * Child components are slotted by name so the shell controls layout
- * without owning the component instances.
+ * Top-level layout styled as an ancient spellbook.
+ * Left page: commander search + strategy config.
+ * Right page: generated deck view.
  */
-
-// ---------------------------------------------------------------------------
-// Template
-// ---------------------------------------------------------------------------
 
 const template = document.createElement("template");
 template.innerHTML = `
 <style>
   :host {
     display: block;
-    font-family: system-ui, -apple-system, sans-serif;
-    color: #e0e0e0;
+    font-family: 'Crimson Text', Georgia, serif;
+    color: #f4e8c1;
     min-height: 100vh;
-    background: #121212;
+    background: #1a0f0a;
   }
 
   * { box-sizing: border-box; }
 
-  /* Header */
+  /* ---- Header / Book Spine ---- */
   .app-header {
-    background: #1a1a2e;
-    border-bottom: 1px solid #333;
-    padding: 12px 16px;
+    background: linear-gradient(180deg, #2c1810 0%, #1a0f0a 100%);
+    border-bottom: 3px solid #5c4033;
+    padding: 12px 20px;
     display: flex;
     align-items: center;
     gap: 12px;
     position: sticky;
     top: 0;
     z-index: 100;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  }
+
+  .app-header::after {
+    content: '';
+    position: absolute;
+    bottom: -3px;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #c9a84c, transparent);
   }
 
   .app-title {
     margin: 0;
-    font-size: 1.25rem;
+    font-family: 'Cinzel', Georgia, serif;
+    font-size: 1.4rem;
     font-weight: 700;
-    color: #fff;
+    color: #e8d48b;
     white-space: nowrap;
+    letter-spacing: 0.05em;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
   }
 
-  .app-title-accent {
-    color: #7c4dff;
+  .app-title-icon {
+    font-size: 1.3rem;
+    margin-right: 4px;
   }
 
-  /* Main layout container */
+  .app-subtitle {
+    font-family: 'Crimson Text', Georgia, serif;
+    font-size: 0.8rem;
+    color: #8b7355;
+    font-style: italic;
+    margin-left: 8px;
+  }
+
+  /* ---- Ornamental divider ---- */
+  .ornament {
+    text-align: center;
+    color: #5c4033;
+    font-size: 0.9rem;
+    letter-spacing: 0.3em;
+    padding: 0;
+    line-height: 1;
+    user-select: none;
+  }
+
+  /* ---- Main layout: the open book ---- */
   .app-layout {
     display: grid;
-    gap: 16px;
-    padding: 16px;
+    gap: 0;
     min-height: calc(100vh - 52px);
     max-width: 2560px;
     margin: 0 auto;
   }
 
-  /* Panel wrappers */
-  .panel {
-    background: #1e1e1e;
-    border: 1px solid #333;
-    border-radius: 8px;
-    overflow: hidden;
+  .page {
+    background:
+      linear-gradient(135deg, rgba(60,43,31,0.4) 0%, rgba(44,24,16,0.9) 100%);
     min-width: 0;
+    position: relative;
   }
 
-  /* ---------------------------------------------------------------
-     Mobile layout (<768px): single column, stacked
-     --------------------------------------------------------------- */
+  /* Parchment inner glow on pages */
+  .page::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse at 50% 0%, rgba(244,232,193,0.03) 0%, transparent 60%);
+  }
+
+  .left-page {
+    border-right: 1px solid #3d2b1f;
+    overflow-y: auto;
+  }
+
+  .right-page {
+    overflow-y: auto;
+    background:
+      linear-gradient(135deg, rgba(44,24,16,0.95) 0%, rgba(26,15,10,1) 100%);
+  }
+
+  /* Book spine shadow between pages */
+  .left-page::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: -8px;
+    bottom: 0;
+    width: 8px;
+    background: linear-gradient(90deg, rgba(0,0,0,0.3), transparent);
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* ---- Mobile: single column (stacked pages) ---- */
   .app-layout {
     grid-template-columns: 1fr;
+    grid-template-rows: auto auto 1fr;
     grid-template-areas:
       "commander"
-      "generator"
-      "generator-progress"
-      "search"
-      "deck"
-      "stats"
-      "validation"
-      "recommendations"
-      "export"
-      "saved";
+      "strategy"
+      "deck";
   }
 
-  .panel-commander    { grid-area: commander; }
-  .panel-generator    { grid-area: generator; }
-  .panel-generator-progress { grid-area: generator-progress; }
-  .panel-search       { grid-area: search; }
-  .panel-deck         { grid-area: deck; }
-  .panel-stats        { grid-area: stats; }
-  .panel-validation   { grid-area: validation; }
-  .panel-recommendations { grid-area: recommendations; }
-  .panel-export       { grid-area: export; }
-  .panel-saved        { grid-area: saved; }
+  .page-commander { grid-area: commander; }
+  .page-strategy  { grid-area: strategy; }
+  .page-deck      { grid-area: deck; }
 
-  /* ---------------------------------------------------------------
-     Tablet / Desktop layout (≥768px): two columns
-     --------------------------------------------------------------- */
+  .left-page {
+    position: static;
+    max-height: none;
+    border-right: none;
+    border-bottom: 1px solid #3d2b1f;
+  }
+
+  .left-page::after {
+    display: none;
+  }
+
+  /* ---- Tablet (768px+): two-column book ---- */
   @media (min-width: 768px) {
     .app-layout {
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 400px 1fr;
+      grid-template-rows: auto 1fr;
       grid-template-areas:
-        "commander    deck"
-        "generator    deck"
-        "generator-progress deck"
-        "search       deck"
-        "search       stats"
-        "recommendations validation"
-        "recommendations export"
-        "saved        saved";
+        "commander deck"
+        "strategy  deck";
+    }
+
+    .left-page {
+      position: sticky;
+      top: 52px;
+      max-height: calc(100vh - 52px);
+      border-right: 1px solid #3d2b1f;
+      border-bottom: none;
+    }
+
+    .left-page::after {
+      display: block;
     }
   }
 
-  /* ---------------------------------------------------------------
-     Wide desktop (≥1200px): three columns
-     --------------------------------------------------------------- */
+  /* ---- Desktop (1200px+) ---- */
   @media (min-width: 1200px) {
     .app-layout {
-      grid-template-columns: 1fr 1fr 1fr;
-      grid-template-areas:
-        "commander    deck       stats"
-        "generator    deck       stats"
-        "generator-progress deck  validation"
-        "search       deck       validation"
-        "recommendations export  saved";
+      grid-template-columns: 460px 1fr;
     }
   }
 
-  /* ---------------------------------------------------------------
-     Ultra-wide (≥1800px): wider with more breathing room
-     --------------------------------------------------------------- */
+  /* ---- Ultra-wide (1800px+) ---- */
   @media (min-width: 1800px) {
     .app-layout {
-      grid-template-columns: 1.2fr 1fr 1fr 0.8fr;
-      grid-template-areas:
-        "commander    deck       stats      validation"
-        "generator    deck       stats      export"
-        "generator-progress deck recommendations saved"
-        "search       deck       recommendations saved";
-      gap: 20px;
-      padding: 20px;
+      grid-template-columns: 520px 1fr;
     }
-  }
-
-  /* Ensure touch targets on mobile */
-  @media (max-width: 767px) {
-    .app-layout {
-      padding: 8px;
-      gap: 8px;
-    }
-
-    .app-header {
-      padding: 10px 12px;
-    }
-
-    .app-title {
-      font-size: 1.1rem;
-    }
-  }
-
-  /* Slots — ensure slotted content fills the panel */
-  ::slotted(*) {
-    display: block;
-    width: 100%;
   }
 </style>
 
-<header class="app-header" role="banner">
+<header class="app-header">
   <h1 class="app-title">
-    <span class="app-title-accent">MTG</span> Commander Deckbuilder
+    <span class="app-title-icon">📖</span>Commander's Codex
+    <span class="app-subtitle">~ Deck Generator ~</span>
   </h1>
 </header>
 
-<main class="app-layout" role="main">
-  <section class="panel panel-commander" role="region" aria-label="Commander selection">
+<main class="app-layout">
+  <section class="page left-page page-commander" aria-label="Commander selection">
     <slot name="commander-search"></slot>
   </section>
 
-  <section class="panel panel-generator" role="region" aria-label="Deck generator">
-    <slot name="deck-generator-controls"></slot>
+  <section class="page left-page page-strategy" aria-label="Strategy configuration">
+    <slot name="strategy-config"></slot>
   </section>
 
-  <section class="panel panel-generator-progress" role="region" aria-label="Generation progress">
-    <slot name="deck-generator-progress"></slot>
-  </section>
-
-  <section class="panel panel-search" role="search" aria-label="Card search">
-    <slot name="card-search"></slot>
-  </section>
-
-  <section class="panel panel-deck" role="region" aria-label="Deck list">
-    <slot name="deck-list"></slot>
-  </section>
-
-  <section class="panel panel-stats" role="region" aria-label="Deck statistics">
-    <slot name="deck-stats"></slot>
-  </section>
-
-  <section class="panel panel-validation" role="region" aria-label="Deck validation">
-    <slot name="deck-validation"></slot>
-  </section>
-
-  <section class="panel panel-recommendations" role="complementary" aria-label="Card recommendations">
-    <slot name="card-recommendations"></slot>
-  </section>
-
-  <section class="panel panel-export" role="region" aria-label="Deck export">
-    <slot name="deck-export"></slot>
-  </section>
-
-  <section class="panel panel-saved" role="region" aria-label="Saved decks">
-    <slot name="saved-decks"></slot>
+  <section class="page right-page page-deck" aria-label="Generated deck">
+    <slot name="deck-view"></slot>
   </section>
 </main>
 `;
 
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
-
 export class AppShell extends HTMLElement {
-  private shadow: ShadowRoot;
-
   constructor() {
     super();
-    this.shadow = this.attachShadow({ mode: "open" });
-    this.shadow.appendChild(template.content.cloneNode(true));
+    const shadow = this.attachShadow({ mode: "open" });
+    shadow.appendChild(template.content.cloneNode(true));
   }
 }

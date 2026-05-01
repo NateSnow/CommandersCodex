@@ -1,21 +1,19 @@
 /**
  * Top-level orchestrator for automatic Commander deck generation.
  *
- * Coordinates the full generation pipeline: fetching recommendations,
- * selecting combos, allocating card categories, building the mana base,
- * filling remaining slots, validating, and loading into DeckManager.
- *
- * Supports two modes:
- * - Commander-based: generate a deck for a given commander
- * - Build-around: find a compatible commander for a given card, then generate
+ * Coordinates the full generation pipeline: fetching EDHREC recommendations,
+ * running archetype-specific Scryfall queries, selecting combos (optional),
+ * allocating card categories, building the mana base, and assembling the
+ * final 100-card deck.
  */
 
-import type { Card, Color, ColorIdentity } from "../models/card.js";
+import type { Card, ColorIdentity } from "../models/card.js";
 import type { Deck, DeckEntry } from "../models/deck.js";
 import type {
+  Archetype,
+  BracketLevel,
   CategoryTemplate,
   CategorizedCards,
-  ColorRequirements,
   GenerationOptions,
   GenerationResult,
   GenerationWarning,
@@ -24,23 +22,20 @@ import type { Combo, EDHRECRecommendation } from "../models/recommendation.js";
 import type { ScryfallAdapter } from "../data/scryfall-adapter.js";
 import type { EDHRECAdapter } from "../data/edhrec-adapter.js";
 import type { CommanderSpellbookAdapter } from "../data/commander-spellbook-adapter.js";
-import type { DeckManager } from "./deck-manager.js";
-import { DEFAULT_CATEGORY_TEMPLATE } from "../models/generation.js";
+import { ARCHETYPE_TEMPLATES } from "../models/generation.js";
 import { allocate } from "./category-allocator.js";
 import { buildManaBase, calculateColorRequirements } from "./mana-base-builder.js";
 import { validate } from "./deck-validator.js";
 import { isSubsetOfColorIdentity } from "./color-identity.js";
 import { isBanned } from "./banned-list.js";
 import { dispatch } from "../utils/event-bus.js";
+import { buildArchetypeQueries } from "./archetype-queries.js";
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-/** Default number of lands in a generated deck. */
 const DEFAULT_LAND_COUNT = 37;
-
-/** Synergy score tolerance for shuffling equally-ranked cards. */
 const SYNERGY_SHUFFLE_TOLERANCE = 0.05;
 
 // ---------------------------------------------------------------------------
@@ -51,18 +46,15 @@ export class DeckGenerator {
   private scryfallAdapter: ScryfallAdapter;
   private edhrecAdapter: EDHRECAdapter;
   private commanderSpellbookAdapter: CommanderSpellbookAdapter;
-  private deckManager: DeckManager;
 
   constructor(deps: {
     scryfallAdapter: ScryfallAdapter;
     edhrecAdapter: EDHRECAdapter;
     commanderSpellbookAdapter: CommanderSpellbookAdapter;
-    deckManager: DeckManager;
   }) {
     this.scryfallAdapter = deps.scryfallAdapter;
     this.edhrecAdapter = deps.edhrecAdapter;
     this.commanderSpellbookAdapter = deps.commanderSpellbookAdapter;
-    this.deckManager = deps.deckManager;
   }
 
   // -----------------------------------------------------------------------
@@ -70,17 +62,17 @@ export class DeckGenerator {
   // -----------------------------------------------------------------------
 
   async generate(options: GenerationOptions): Promise<GenerationResult> {
-    const { commander, buildAroundCard } = options;
+    const { commander, archetype, bracketLevel, includeInfiniteCombos } = options;
     const landCount = options.landCount ?? DEFAULT_LAND_COUNT;
-    const template = options.categoryTemplate ?? DEFAULT_CATEGORY_TEMPLATE;
+    const template = options.categoryTemplate ?? ARCHETYPE_TEMPLATES[archetype];
     const warnings: GenerationWarning[] = [];
     const fallbacksUsed: string[] = [];
 
     try {
-      // --- Phase 1: Fetch recommendations (20%) ---
+      // --- Phase 1: Fetch EDHREC recommendations (15%) ---
       dispatch("generation-progress", {
         phase: "Fetching recommendations",
-        percentComplete: 20,
+        percentComplete: 15,
       });
 
       let recommendations: EDHRECRecommendation[] = [];
@@ -91,88 +83,126 @@ export class DeckGenerator {
           throw new Error("Empty EDHREC response");
         }
       } catch {
-        // EDHREC failure → fall back to Scryfall search
         warnings.push({
           source: "edhrec",
-          message:
-            "EDHREC recommendations unavailable. Falling back to Scryfall search.",
+          message: "EDHREC recommendations unavailable. Using Scryfall search only.",
         });
         fallbacksUsed.push("edhrec-unavailable");
-        recommendations = await this.fetchScryfallFallbackRecommendations(
-          commander.colorIdentity,
-        );
       }
 
-      // --- Phase 2: Fetch combos (40%) ---
-      dispatch("generation-progress", {
-        phase: "Selecting combos",
-        percentComplete: 40,
-      });
-
+      // --- Phase 2: Fetch combos if requested (30%) ---
       let combos: Combo[] = [];
-      try {
-        combos = await this.commanderSpellbookAdapter.searchCombos(
-          commander.colorIdentity,
-        );
-      } catch {
-        warnings.push({
-          source: "commander-spellbook",
-          message:
-            "Commander Spellbook unavailable. Skipping combo inclusion.",
-        });
-        fallbacksUsed.push("no-combos-found");
-      }
-
-      // --- Phase 3: Resolve card names → Card objects (60%) ---
-      dispatch("generation-progress", {
-        phase: "Allocating card categories",
-        percentComplete: 60,
-      });
-
-      // Shuffle recommendations with similar synergy scores for regeneration variety
-      const shuffledRecs = shuffleSimilarSynergyCards(recommendations);
-
-      // Resolve recommendation card names to full Card objects via Scryfall
-      const resolvedCards = await this.resolveRecommendations(
-        shuffledRecs,
-        commander.colorIdentity,
-      );
-
-      // --- Phase 4: Select combo cards ---
-      const bestCombo = selectBestCombo(combos, recommendations);
       let comboCards: Card[] = [];
       const combosIncluded: Combo[] = [];
 
-      if (bestCombo) {
-        comboCards = await this.resolveCardNames(bestCombo.cards);
-        // Filter combo cards to those within color identity
-        comboCards = comboCards.filter(
-          (c) =>
-            isSubsetOfColorIdentity(c.colorIdentity, commander.colorIdentity) &&
-            !isBanned(c.name),
+      if (includeInfiniteCombos) {
+        dispatch("generation-progress", {
+          phase: "Finding combos",
+          percentComplete: 30,
+        });
+
+        try {
+          combos = await this.commanderSpellbookAdapter.searchCombos(
+            commander.colorIdentity,
+          );
+
+          if (combos.length > 0) {
+            const bestCombo = selectBestCombo(combos, recommendations);
+            if (bestCombo) {
+              const resolved = await this.resolveCardNames(bestCombo.cards);
+              const valid = resolved.filter(
+                (c) =>
+                  isSubsetOfColorIdentity(c.colorIdentity, commander.colorIdentity) &&
+                  !isBanned(c.name),
+              );
+              if (valid.length === bestCombo.cards.length) {
+                comboCards = valid;
+                combosIncluded.push(bestCombo);
+              }
+            }
+          }
+        } catch {
+          warnings.push({
+            source: "commander-spellbook",
+            message: "Commander Spellbook unavailable. Skipping combo inclusion.",
+          });
+          fallbacksUsed.push("no-combos-found");
+        }
+      } else {
+        dispatch("generation-progress", {
+          phase: "Skipping combos (not requested)",
+          percentComplete: 30,
+        });
+      }
+
+      // --- Phase 3: Run archetype-specific Scryfall queries (50%) ---
+      dispatch("generation-progress", {
+        phase: `Building ${archetype} card pool`,
+        percentComplete: 50,
+      });
+
+      const archetypeQueries = buildArchetypeQueries(commander, archetype, bracketLevel);
+      const cardPool: Card[] = [];
+      const seenNames = new Set<string>();
+      seenNames.add(commander.name);
+
+      // Add combo cards to the seen set so they don't get duplicated
+      for (const cc of comboCards) {
+        seenNames.add(cc.name);
+      }
+
+      // Resolve EDHREC recommendations first (they have synergy data)
+      if (recommendations.length > 0) {
+        const shuffled = shuffleSimilarSynergyCards(recommendations);
+        const resolved = await this.resolveRecommendations(
+          shuffled,
+          commander.colorIdentity,
         );
-        if (comboCards.length === bestCombo.cards.length) {
-          combosIncluded.push(bestCombo);
-        } else {
-          // Couldn't resolve all combo cards — skip this combo
-          comboCards = [];
+        for (const card of resolved) {
+          if (!seenNames.has(card.name)) {
+            cardPool.push(card);
+            seenNames.add(card.name);
+          }
         }
       }
 
-      // Ensure build-around card is in the resolved cards pool
-      if (buildAroundCard) {
-        const alreadyIncluded = resolvedCards.some(
-          (c) => c.name === buildAroundCard.name,
-        );
-        if (!alreadyIncluded) {
-          resolvedCards.unshift(buildAroundCard);
+      // Run archetype queries to fill gaps
+      for (const aq of archetypeQueries) {
+        try {
+          const result = await this.scryfallAdapter.searchCards(
+            aq.query,
+            [], // Color identity already in the query
+          );
+
+          let added = 0;
+          for (const card of result.cards) {
+            if (added >= aq.targetCount) break;
+            if (seenNames.has(card.name)) continue;
+            if (isBanned(card.name)) continue;
+            if (!isSubsetOfColorIdentity(card.colorIdentity, commander.colorIdentity)) continue;
+            if (card.typeLine.toLowerCase().includes("land")) continue;
+
+            cardPool.push(card);
+            seenNames.add(card.name);
+            added++;
+          }
+        } catch {
+          warnings.push({
+            source: "scryfall",
+            message: `Scryfall query failed for "${aq.label}". Some cards may be missing.`,
+          });
         }
       }
 
-      // --- Phase 5: Allocate categories ---
-      const categorized = allocate(resolvedCards, template, comboCards);
+      // --- Phase 4: Allocate categories (65%) ---
+      dispatch("generation-progress", {
+        phase: "Allocating card categories",
+        percentComplete: 65,
+      });
 
-      // --- Phase 6: Build mana base (80%) ---
+      const categorized = allocate(cardPool, template, comboCards);
+
+      // --- Phase 5: Build mana base (80%) ---
       dispatch("generation-progress", {
         phase: "Building mana base",
         percentComplete: 80,
@@ -189,17 +219,20 @@ export class DeckGenerator {
         this.scryfallAdapter,
       );
 
-      // --- Phase 7: Assemble deck and fill remaining slots ---
-      let allEntries = [...nonLandCards, ...manaBase];
+      // --- Phase 6: Assemble and fill (90%) ---
+      dispatch("generation-progress", {
+        phase: "Assembling deck",
+        percentComplete: 90,
+      });
 
-      // Target: 99 cards (excluding commander)
+      let allEntries = [...nonLandCards, ...manaBase];
       const targetNonCommander = 99;
+
+      // Fill remaining slots from unallocated cards
       if (allEntries.length < targetNonCommander) {
-        const slotsToFill = targetNonCommander - allEntries.length;
         const existingNames = new Set(allEntries.map((e) => e.card.name));
         existingNames.add(commander.name);
 
-        // Try unallocated cards first
         const unallocated = categorized.unallocated.filter(
           (e) => !existingNames.has(e.card.name),
         );
@@ -209,7 +242,7 @@ export class DeckGenerator {
           existingNames.add(entry.card.name);
         }
 
-        // If still short, search Scryfall for more cards
+        // If still short, do a generic Scryfall fill
         if (allEntries.length < targetNonCommander) {
           try {
             const remaining = targetNonCommander - allEntries.length;
@@ -220,77 +253,55 @@ export class DeckGenerator {
             );
             allEntries.push(...fillCards);
           } catch {
-            // Scryfall failure during fill — abort
             dispatch("generation-error", {
               message: "Card data is temporarily unavailable. Please try again later.",
             });
-            throw new Error(
-              "Card data is temporarily unavailable. Please try again later.",
-            );
+            throw new Error("Card data is temporarily unavailable.");
           }
         }
       }
 
-      // Trim to exactly 99 if we somehow have more
+      // Trim to exactly 99
       if (allEntries.length > targetNonCommander) {
         allEntries = allEntries.slice(0, targetNonCommander);
       }
 
-      // Check if we have enough cards
       if (allEntries.length < targetNonCommander) {
-        const errorMsg = `Could not assemble a complete deck for ${commander.name}. Try a different commander with more available cards.`;
+        const errorMsg = `Could not assemble a complete deck for ${commander.name}. Try a different commander or archetype.`;
         dispatch("generation-error", { message: errorMsg });
         return {
           deck: buildDeckObject(commander, allEntries),
           combosIncluded,
           warnings,
           fallbacksUsed: [...fallbacksUsed, "incomplete-deck"],
+          archetype,
+          bracketLevel,
         };
       }
 
-      // --- Phase 8: Finalize (95%) ---
+      // --- Phase 7: Finalize (95%) ---
       dispatch("generation-progress", {
-        phase: "Finalizing deck",
+        phase: "Validating deck",
         percentComplete: 95,
       });
 
       const deck = buildDeckObject(commander, allEntries);
-
-      // Validate
       const validationResult = validate(deck);
+
       if (!validationResult.isLegal) {
-        console.error(
-          "Generated deck failed validation:",
-          validationResult.violations,
-        );
-        dispatch("generation-error", {
-          message:
-            "An unexpected error occurred during deck generation. Please try again.",
-        });
-        return {
-          deck,
-          combosIncluded,
-          warnings,
-          fallbacksUsed,
-        };
+        console.error("Generated deck failed validation:", validationResult.violations);
       }
 
-      // Load into DeckManager
-      this.deckManager.setCommander(commander);
-      for (const entry of allEntries) {
-        this.deckManager.addCard(entry.card, entry.category);
-      }
-
-      // Emit completion
       const result: GenerationResult = {
         deck,
         combosIncluded,
         warnings,
         fallbacksUsed,
+        archetype,
+        bracketLevel,
       };
 
       dispatch("generation-complete", { result });
-
       return result;
     } catch (error) {
       const message =
@@ -303,134 +314,13 @@ export class DeckGenerator {
   }
 
   // -----------------------------------------------------------------------
-  // generateBuildAround — build-around mode
-  // -----------------------------------------------------------------------
-
-  async generateBuildAround(card: Card): Promise<GenerationResult> {
-    // If the card can be a commander, return a special result indicating
-    // the user should choose whether to use it as commander
-    if (card.canBeCommander) {
-      return {
-        deck: buildDeckObject(card, []),
-        combosIncluded: [],
-        warnings: [
-          {
-            source: "scryfall",
-            message: `${card.name} can be used as a commander. You may want to use it as your commander instead.`,
-          },
-        ],
-        fallbacksUsed: ["build-around-is-commander"],
-      };
-    }
-
-    // Search Scryfall for commanders whose color identity includes the card's colors
-    const colorQuery =
-      card.colorIdentity.length > 0
-        ? card.colorIdentity.map((c) => c.toLowerCase()).join("")
-        : "c";
-
-    let commanderCard: Card | undefined;
-    try {
-      const searchResult = await this.scryfallAdapter.searchCards(
-        `is:commander`,
-        card.colorIdentity,
-      );
-      // Pick the first result as the best commander
-      commanderCard = searchResult.cards.find(
-        (c) =>
-          c.canBeCommander &&
-          isSubsetOfColorIdentity(card.colorIdentity, c.colorIdentity),
-      );
-    } catch {
-      // Scryfall failure
-    }
-
-    if (!commanderCard) {
-      const errorMsg = `No suitable commander was found for ${card.name}. Try selecting a commander manually.`;
-      dispatch("generation-error", { message: errorMsg });
-      return {
-        deck: buildDeckObject(
-          {
-            ...card,
-            // Use the card as a placeholder commander for the error result
-          } as Card,
-          [],
-        ),
-        combosIncluded: [],
-        warnings: [
-          {
-            source: "scryfall",
-            message: errorMsg,
-          },
-        ],
-        fallbacksUsed: ["no-compatible-commander"],
-      };
-    }
-
-    // Generate with the selected commander and the build-around card
-    const result = await this.generate({
-      commander: commanderCard,
-      buildAroundCard: card,
-    });
-
-    // Ensure the build-around card is in the deck
-    const buildAroundInDeck = result.deck.entries.some(
-      (e) => e.card.name === card.name,
-    );
-    if (!buildAroundInDeck) {
-      // Replace the last non-land, non-combo entry with the build-around card
-      const replaceIndex = result.deck.entries.findIndex(
-        (e) =>
-          e.category !== "Land" &&
-          !result.combosIncluded.some((combo) =>
-            combo.cards.includes(e.card.name),
-          ),
-      );
-      if (replaceIndex >= 0) {
-        result.deck.entries[replaceIndex] = {
-          card,
-          quantity: 1,
-          category: "Creature",
-        };
-      }
-    }
-
-    return result;
-  }
-
-  // -----------------------------------------------------------------------
   // Private helpers
   // -----------------------------------------------------------------------
 
-  /**
-   * Fall back to Scryfall search when EDHREC is unavailable.
-   * Returns pseudo-recommendations from Scryfall card search.
-   */
-  private async fetchScryfallFallbackRecommendations(
-    colorIdentity: ColorIdentity,
-  ): Promise<EDHRECRecommendation[]> {
-    const result = await this.scryfallAdapter.searchCards(
-      "f:commander",
-      colorIdentity,
-    );
-    return result.cards.map((card, index) => ({
-      cardName: card.name,
-      scryfallId: card.id,
-      synergyScore: 1 - index * 0.01, // Decreasing score by position
-      inclusionPercentage: 50,
-    }));
-  }
-
-  /**
-   * Resolve a list of EDHRECRecommendation card names to full Card objects
-   * via Scryfall's fetchCardCollection. Filters out banned cards and cards
-   * outside the commander's color identity.
-   */
   private async resolveRecommendations(
     recommendations: EDHRECRecommendation[],
     commanderColors: ColorIdentity,
   ): Promise<Card[]> {
-    // If recommendations have scryfallIds, use those; otherwise search by name
     const idsToFetch = recommendations
       .filter((r) => r.scryfallId)
       .map((r) => r.scryfallId!);
@@ -438,18 +328,15 @@ export class DeckGenerator {
     let cards: Card[] = [];
 
     if (idsToFetch.length > 0) {
-      // Batch fetch by ID
       cards = await this.scryfallAdapter.fetchCardCollection(idsToFetch);
     }
 
-    // For recommendations without IDs, we need to search by name
     const resolvedNames = new Set(cards.map((c) => c.name));
     const unresolvedRecs = recommendations.filter(
       (r) => !r.scryfallId && !resolvedNames.has(r.cardName),
     );
 
     if (unresolvedRecs.length > 0) {
-      // Search for unresolved cards in batches
       for (const rec of unresolvedRecs.slice(0, 50)) {
         try {
           const searchResult = await this.scryfallAdapter.searchCards(
@@ -465,7 +352,6 @@ export class DeckGenerator {
       }
     }
 
-    // Filter out banned cards and cards outside color identity
     return cards.filter(
       (card) =>
         !isBanned(card.name) &&
@@ -474,9 +360,6 @@ export class DeckGenerator {
     );
   }
 
-  /**
-   * Resolve an array of card names to full Card objects via Scryfall search.
-   */
   private async resolveCardNames(cardNames: string[]): Promise<Card[]> {
     const resolved: Card[] = [];
     for (const name of cardNames) {
@@ -495,9 +378,6 @@ export class DeckGenerator {
     return resolved;
   }
 
-  /**
-   * Search Scryfall for additional cards to fill remaining deck slots.
-   */
   private async searchFillCards(
     colorIdentity: ColorIdentity,
     existingNames: Set<string>,
@@ -532,21 +412,15 @@ export class DeckGenerator {
 // Pure helper functions
 // ---------------------------------------------------------------------------
 
-/**
- * Shuffle cards with similar synergy scores (within tolerance) to ensure
- * regeneration produces different decks.
- */
 function shuffleSimilarSynergyCards(
   recommendations: EDHRECRecommendation[],
 ): EDHRECRecommendation[] {
   if (recommendations.length === 0) return [];
 
-  // Sort by synergy score descending first
   const sorted = [...recommendations].sort(
     (a, b) => b.synergyScore - a.synergyScore,
   );
 
-  // Group cards with similar synergy scores and shuffle within groups
   const result: EDHRECRecommendation[] = [];
   let groupStart = 0;
 
@@ -562,7 +436,6 @@ function shuffleSimilarSynergyCards(
       groupEnd++;
     }
 
-    // Shuffle the group using Fisher-Yates
     const group = sorted.slice(groupStart, groupEnd);
     for (let i = group.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -576,10 +449,6 @@ function shuffleSimilarSynergyCards(
   return result;
 }
 
-/**
- * Select the best combo package. Prefers combos whose cards overlap
- * with EDHREC recommendations.
- */
 function selectBestCombo(
   combos: Combo[],
   recommendations: EDHRECRecommendation[],
@@ -587,8 +456,6 @@ function selectBestCombo(
   if (combos.length === 0) return null;
 
   const recNames = new Set(recommendations.map((r) => r.cardName));
-
-  // Score each combo by how many of its cards appear in recommendations
   let bestCombo: Combo | null = null;
   let bestOverlap = -1;
 
@@ -603,9 +470,6 @@ function selectBestCombo(
   return bestCombo;
 }
 
-/**
- * Collect all non-land DeckEntry items from categorized cards.
- */
 function collectNonLandCards(categorized: CategorizedCards): DeckEntry[] {
   return [
     ...categorized.ramp,
@@ -615,9 +479,6 @@ function collectNonLandCards(categorized: CategorizedCards): DeckEntry[] {
   ];
 }
 
-/**
- * Build a Deck object from a commander and entries.
- */
 function buildDeckObject(commander: Card, entries: DeckEntry[]): Deck {
   return {
     id: crypto.randomUUID(),
@@ -629,9 +490,6 @@ function buildDeckObject(commander: Card, entries: DeckEntry[]): Deck {
   };
 }
 
-/**
- * Infer a CardCategory from a card's type line.
- */
 function inferCategory(card: Card): DeckEntry["category"] {
   const typeLine = card.typeLine.toLowerCase();
   if (typeLine.includes("land")) return "Land";
