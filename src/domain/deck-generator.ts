@@ -197,7 +197,12 @@ export class DeckGenerator {
         percentComplete: 65,
       });
 
-      const categorized = allocate(cardPool, template, comboCards);
+      // Cap the card pool — we only need ~62 non-land cards (99 - landCount)
+      const targetNonCommander = 99;
+      const nonLandTarget = targetNonCommander - landCount;
+      const cappedPool = cardPool.slice(0, Math.max(nonLandTarget + 20, 80));
+
+      const categorized = allocate(cappedPool, template, comboCards);
 
       // --- Phase 5: Build mana base (80%) ---
       dispatch("generation-progress", {
@@ -223,10 +228,13 @@ export class DeckGenerator {
       });
 
       let allEntries = [...nonLandCards, ...manaBase];
-      const targetNonCommander = 99;
+
+      /** Count total cards respecting quantity on each entry. */
+      const totalQty = (entries: DeckEntry[]): number =>
+        entries.reduce((sum, e) => sum + e.quantity, 0);
 
       // Fill remaining slots from unallocated cards
-      if (allEntries.length < targetNonCommander) {
+      if (totalQty(allEntries) < targetNonCommander) {
         const existingNames = new Set(allEntries.map((e) => e.card.name));
         existingNames.add(commander.name);
 
@@ -234,15 +242,15 @@ export class DeckGenerator {
           (e) => !existingNames.has(e.card.name),
         );
         for (const entry of unallocated) {
-          if (allEntries.length >= targetNonCommander) break;
+          if (totalQty(allEntries) >= targetNonCommander) break;
           allEntries.push(entry);
           existingNames.add(entry.card.name);
         }
 
         // If still short, do a generic Scryfall fill
-        if (allEntries.length < targetNonCommander) {
+        if (totalQty(allEntries) < targetNonCommander) {
           try {
-            const remaining = targetNonCommander - allEntries.length;
+            const remaining = targetNonCommander - totalQty(allEntries);
             const fillCards = await this.searchFillCards(
               commander.colorIdentity,
               existingNames,
@@ -258,12 +266,30 @@ export class DeckGenerator {
         }
       }
 
-      // Trim to exactly 99
-      if (allEntries.length > targetNonCommander) {
-        allEntries = allEntries.slice(0, targetNonCommander);
+      // Trim to exactly 99 total cards (respecting quantity)
+      while (totalQty(allEntries) > targetNonCommander) {
+        // Remove non-land singleton entries from the end first
+        let removed = false;
+        for (let i = allEntries.length - 1; i >= 0; i--) {
+          if (allEntries[i].category !== "Land" && allEntries[i].quantity === 1) {
+            allEntries.splice(i, 1);
+            removed = true;
+            break;
+          }
+        }
+        // If only lands remain over budget, reduce a basic land quantity
+        if (!removed) {
+          for (let i = allEntries.length - 1; i >= 0; i--) {
+            if (allEntries[i].quantity > 1) {
+              allEntries[i].quantity--;
+              if (allEntries[i].quantity === 0) allEntries.splice(i, 1);
+              break;
+            }
+          }
+        }
       }
 
-      if (allEntries.length < targetNonCommander) {
+      if (totalQty(allEntries) < targetNonCommander) {
         const errorMsg = `Could not assemble a complete deck for ${commander.name}. Try a different commander or archetype.`;
         dispatch("generation-error", { message: errorMsg });
         return {
