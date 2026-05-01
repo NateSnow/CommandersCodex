@@ -394,6 +394,8 @@ export interface ScryfallAdapter {
     colorIdentity: ColorIdentity,
     filters?: SearchFilters,
   ): Promise<ScryfallSearchResult>;
+  /** Search with a raw, pre-built Scryfall query string (no color identity added). */
+  searchRaw(query: string): Promise<ScryfallSearchResult>;
   getCardById(id: string): Promise<Card>;
   autocomplete(query: string): Promise<string[]>;
   getNextPage(url: string): Promise<ScryfallSearchResult>;
@@ -428,6 +430,12 @@ export function createScryfallAdapter(): ScryfallAdapter {
     ): Promise<ScryfallSearchResult> {
       const fullQuery = buildSearchQuery(query, colorIdentity, filters);
       const encoded = encodeURIComponent(fullQuery);
+      const url = `https://api.scryfall.com/cards/search?q=${encoded}`;
+      return fetchSearchResults(url);
+    },
+
+    async searchRaw(query: string): Promise<ScryfallSearchResult> {
+      const encoded = encodeURIComponent(query);
       const url = `https://api.scryfall.com/cards/search?q=${encoded}`;
       return fetchSearchResults(url);
     },

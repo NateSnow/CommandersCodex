@@ -169,10 +169,7 @@ export class DeckGenerator {
       // Run archetype queries to fill gaps
       for (const aq of archetypeQueries) {
         try {
-          const result = await this.scryfallAdapter.searchCards(
-            aq.query,
-            [], // Color identity already in the query
-          );
+          const result = await this.scryfallAdapter.searchRaw(aq.query);
 
           let added = 0;
           for (const card of result.cards) {
