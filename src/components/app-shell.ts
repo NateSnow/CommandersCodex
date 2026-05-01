@@ -218,6 +218,8 @@ template.innerHTML = `
     <span class="footer-sep">·</span>
     <button class="footer-link" id="credits-link" aria-label="View credits and attribution">Credits & Attribution</button>
     <span class="footer-sep">·</span>
+    <a class="footer-link" href="https://account.venmo.com/u/NateSnow001" target="_blank" rel="noopener noreferrer">🪙 Spare Some Coin</a>
+    <span class="footer-sep">·</span>
     <a class="footer-link" href="https://github.com/NateSnow/CommandersCodex" target="_blank" rel="noopener noreferrer">GitHub</a>
   </div>
 </footer>

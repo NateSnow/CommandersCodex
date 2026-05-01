@@ -189,6 +189,48 @@ template.innerHTML = `
 
   .built-with a:hover { text-decoration: underline; }
 
+  .support-section {
+    text-align: center;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #2a2840;
+  }
+
+  .btn-support {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 28px;
+    font-family: 'Cinzel', Georgia, serif;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #fff;
+    background: linear-gradient(180deg, #a78bfa 0%, #8b5cf6 100%);
+    border: 2px solid #6d28d9;
+    border-radius: 10px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+    text-shadow: 0 0 10px rgba(139,92,246,0.4);
+    box-shadow: 0 4px 20px rgba(139,92,246,0.25), 0 0 40px rgba(139,92,246,0.08);
+  }
+
+  .btn-support:hover {
+    background: linear-gradient(180deg, #c4b5fd 0%, #a78bfa 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 30px rgba(139,92,246,0.35), 0 0 60px rgba(139,92,246,0.12);
+  }
+
+  .btn-support:focus-visible { outline: 2px solid #8b5cf6; outline-offset: 2px; }
+
+  .support-sub {
+    margin-top: 8px;
+    font-size: 0.8rem;
+    color: #6b6580;
+    font-style: italic;
+  }
+
   @media (max-width: 600px) {
     .credits-content { padding: 24px 16px; }
     h1 { font-size: 1.3rem; }
@@ -289,6 +331,13 @@ template.innerHTML = `
       Made with ✦ for the Commander community
       <br />
       <a href="https://github.com/NateSnow/CommandersCodex" target="_blank" rel="noopener noreferrer">View on GitHub</a>
+    </div>
+
+    <div class="support-section">
+      <a class="btn-support" href="https://account.venmo.com/u/NateSnow001" target="_blank" rel="noopener noreferrer">
+        🪙 Support the Codex
+      </a>
+      <div class="support-sub">If you enjoy the app, consider tipping to keep the lights on</div>
     </div>
   </div>
 </div>
