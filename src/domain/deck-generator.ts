@@ -1,10 +1,17 @@
 /**
- * Top-level orchestrator for automatic Commander deck generation.
+ * Deck generation pipeline — EDHREC-first approach.
  *
- * Coordinates the full generation pipeline: fetching EDHREC recommendations,
- * running archetype-specific Scryfall queries, selecting combos (optional),
- * allocating card categories, building the mana base, and assembling the
- * final 100-card deck.
+ * Strategy:
+ * 1. Fetch the EDHREC average deck for the commander (aggregated from
+ *    thousands of real decks). This gives us a complete 100-card list
+ *    with Scryfall IDs.
+ * 2. Resolve those IDs to full Card objects via Scryfall batch API.
+ * 3. Fetch EDHREC commander page recommendations for additional synergy
+ *    cards beyond the average deck.
+ * 4. Optionally fetch combos from Commander Spellbook.
+ * 5. Build the card pool from average deck + recommendations, shuffle
+ *    for variety, then allocate into categories and assemble.
+ * 6. Fall back to archetype Scryfall queries only if EDHREC fails.
  */
 
 import type { Card, ColorIdentity } from "../models/card.js";
@@ -20,7 +27,7 @@ import type {
 } from "../models/generation.js";
 import type { Combo, EDHRECRecommendation } from "../models/recommendation.js";
 import type { ScryfallAdapter } from "../data/scryfall-adapter.js";
-import type { EDHRECAdapter } from "../data/edhrec-adapter.js";
+import type { EDHRECAdapter, EDHRECAverageDeck } from "../data/edhrec-adapter.js";
 import type { CommanderSpellbookAdapter } from "../data/commander-spellbook-adapter.js";
 import { ARCHETYPE_TEMPLATES } from "../models/generation.js";
 import { allocate } from "./category-allocator.js";
@@ -31,16 +38,7 @@ import { isBanned } from "./banned-list.js";
 import { dispatch } from "../utils/event-bus.js";
 import { buildArchetypeQueries } from "./archetype-queries.js";
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
 const DEFAULT_LAND_COUNT = 37;
-const SYNERGY_SHUFFLE_TOLERANCE = 0.05;
-
-// ---------------------------------------------------------------------------
-// DeckGenerator class
-// ---------------------------------------------------------------------------
 
 export class DeckGenerator {
   private scryfallAdapter: ScryfallAdapter;
@@ -57,63 +55,54 @@ export class DeckGenerator {
     this.commanderSpellbookAdapter = deps.commanderSpellbookAdapter;
   }
 
-  // -----------------------------------------------------------------------
-  // generate — full pipeline
-  // -----------------------------------------------------------------------
-
   async generate(options: GenerationOptions): Promise<GenerationResult> {
     const { commander, archetype, bracketLevel, includeInfiniteCombos } = options;
     const landCount = options.landCount ?? DEFAULT_LAND_COUNT;
     const template = options.categoryTemplate ?? ARCHETYPE_TEMPLATES[archetype];
     const warnings: GenerationWarning[] = [];
     const fallbacksUsed: string[] = [];
+    const targetNonCommander = 99;
 
     try {
-      // --- Phase 1: Fetch EDHREC recommendations (15%) ---
-      dispatch("generation-progress", {
-        phase: "Fetching recommendations",
-        percentComplete: 15,
-      });
+      // ---- Phase 1: Fetch EDHREC average deck (20%) ----
+      dispatch("generation-progress", { phase: "Fetching average deck from EDHREC", percentComplete: 20 });
+
+      let avgDeck: EDHRECAverageDeck | null = null;
+      try {
+        avgDeck = await this.edhrecAdapter.getAverageDeck(commander.name);
+      } catch {
+        // Will fall back to recommendations + Scryfall
+      }
+
+      // ---- Phase 2: Fetch EDHREC recommendations (30%) ----
+      dispatch("generation-progress", { phase: "Gathering synergy cards", percentComplete: 30 });
 
       let recommendations: EDHRECRecommendation[] = [];
       try {
-        recommendations =
-          await this.edhrecAdapter.getCommanderRecommendations(commander.name);
-        if (recommendations.length === 0) {
-          throw new Error("Empty EDHREC response");
-        }
+        recommendations = await this.edhrecAdapter.getCommanderRecommendations(commander.name);
       } catch {
-        warnings.push({
-          source: "edhrec",
-          message: "EDHREC recommendations unavailable. Using Scryfall search only.",
-        });
+        // Non-fatal
+      }
+
+      if (!avgDeck && recommendations.length === 0) {
+        warnings.push({ source: "edhrec", message: "EDHREC data unavailable. Using Scryfall search as fallback." });
         fallbacksUsed.push("edhrec-unavailable");
       }
 
-      // --- Phase 2: Fetch combos if requested (30%) ---
-      let combos: Combo[] = [];
+      // ---- Phase 3: Fetch combos if requested (40%) ----
       let comboCards: Card[] = [];
       const combosIncluded: Combo[] = [];
 
       if (includeInfiniteCombos) {
-        dispatch("generation-progress", {
-          phase: "Finding combos",
-          percentComplete: 30,
-        });
-
+        dispatch("generation-progress", { phase: "Finding combos", percentComplete: 40 });
         try {
-          combos = await this.commanderSpellbookAdapter.searchCombos(
-            commander.colorIdentity,
-          );
-
+          const combos = await this.commanderSpellbookAdapter.searchCombos(commander.colorIdentity);
           if (combos.length > 0) {
-            const bestCombo = selectBestCombo(combos, recommendations);
+            const bestCombo = this.selectBestCombo(combos, recommendations);
             if (bestCombo) {
               const resolved = await this.resolveCardNames(bestCombo.cards);
               const valid = resolved.filter(
-                (c) =>
-                  isSubsetOfColorIdentity(c.colorIdentity, commander.colorIdentity) &&
-                  !isBanned(c.name),
+                (c) => isSubsetOfColorIdentity(c.colorIdentity, commander.colorIdentity) && !isBanned(c.name),
               );
               if (valid.length === bestCombo.cards.length) {
                 comboCards = valid;
@@ -122,165 +111,191 @@ export class DeckGenerator {
             }
           }
         } catch {
-          warnings.push({
-            source: "commander-spellbook",
-            message: "Commander Spellbook unavailable. Skipping combo inclusion.",
-          });
+          warnings.push({ source: "commander-spellbook", message: "Commander Spellbook unavailable. Skipping combos." });
           fallbacksUsed.push("no-combos-found");
         }
       } else {
-        dispatch("generation-progress", {
-          phase: "Skipping combos (not requested)",
-          percentComplete: 30,
-        });
+        dispatch("generation-progress", { phase: "Skipping combos", percentComplete: 40 });
       }
 
-      // --- Phase 3: Run archetype-specific Scryfall queries (50%) ---
-      dispatch("generation-progress", {
-        phase: `Building ${archetype} card pool`,
-        percentComplete: 50,
-      });
+      // ---- Phase 4: Build card pool (55%) ----
+      dispatch("generation-progress", { phase: "Building card pool", percentComplete: 55 });
 
-      const archetypeQueries = buildArchetypeQueries(commander, archetype, bracketLevel);
-      const cardPool: Card[] = [];
+      const nonLandPool: Card[] = [];
+      const landPool: Card[] = [];
       const seenNames = new Set<string>();
       seenNames.add(commander.name);
+      for (const cc of comboCards) seenNames.add(cc.name);
 
-      // Add combo cards to the seen set so they don't get duplicated
-      for (const cc of comboCards) {
-        seenNames.add(cc.name);
+      // 4a: Resolve EDHREC average deck cards via Scryfall batch
+      if (avgDeck && avgDeck.cards.length > 0) {
+        const nonLandIds = avgDeck.cards
+          .filter((c) => c.category !== "lands" && c.category !== "basics")
+          .map((c) => c.scryfallId);
+        const landIds = avgDeck.cards
+          .filter((c) => c.category === "lands" || c.category === "basics")
+          .map((c) => c.scryfallId);
+
+        if (nonLandIds.length > 0) {
+          try {
+            const resolved = await this.scryfallAdapter.fetchCardCollection(nonLandIds);
+            for (const card of resolved) {
+              if (!seenNames.has(card.name) && !isBanned(card.name)) {
+                nonLandPool.push(card);
+                seenNames.add(card.name);
+              }
+            }
+          } catch {
+            warnings.push({ source: "scryfall", message: "Could not resolve some average deck cards." });
+          }
+        }
+
+        if (landIds.length > 0) {
+          try {
+            const resolved = await this.scryfallAdapter.fetchCardCollection(landIds);
+            for (const card of resolved) {
+              if (!seenNames.has(card.name)) {
+                landPool.push(card);
+                seenNames.add(card.name);
+              }
+            }
+          } catch {
+            // Non-fatal, we have hardcoded mana base fallback
+          }
+        }
       }
 
-      // Resolve EDHREC recommendations first (they have synergy data)
+      // 4b: Add EDHREC recommendation cards not already in the pool
       if (recommendations.length > 0) {
-        const shuffled = shuffleSimilarSynergyCards(recommendations);
-        const resolved = await this.resolveRecommendations(
-          shuffled,
-          commander.colorIdentity,
-        );
-        for (const card of resolved) {
-          if (!seenNames.has(card.name)) {
-            cardPool.push(card);
-            seenNames.add(card.name);
-          }
+        const recIds = recommendations
+          .filter((r) => r.scryfallId && !seenNames.has(r.cardName))
+          .map((r) => r.scryfallId!);
+
+        // Also resolve by name for recs without IDs
+        const recNames = recommendations
+          .filter((r) => !r.scryfallId && !seenNames.has(r.cardName))
+          .slice(0, 30);
+
+        if (recIds.length > 0) {
+          try {
+            const resolved = await this.scryfallAdapter.fetchCardCollection(recIds);
+            for (const card of resolved) {
+              if (!seenNames.has(card.name) && !isBanned(card.name) &&
+                  isSubsetOfColorIdentity(card.colorIdentity, commander.colorIdentity) &&
+                  !card.typeLine.toLowerCase().includes("land")) {
+                nonLandPool.push(card);
+                seenNames.add(card.name);
+              }
+            }
+          } catch { /* non-fatal */ }
+        }
+
+        for (const rec of recNames) {
+          try {
+            const result = await this.scryfallAdapter.searchCards(`!"${rec.cardName}"`, commander.colorIdentity);
+            if (result.cards.length > 0) {
+              const card = result.cards[0];
+              if (!seenNames.has(card.name) && !isBanned(card.name) &&
+                  !card.typeLine.toLowerCase().includes("land")) {
+                nonLandPool.push(card);
+                seenNames.add(card.name);
+              }
+            }
+          } catch { /* skip */ }
         }
       }
 
-      // Run archetype queries to fill gaps
-      for (const aq of archetypeQueries) {
-        try {
-          const result = await this.scryfallAdapter.searchRaw(aq.query);
-
-          let added = 0;
-          for (const card of result.cards) {
-            if (added >= aq.targetCount) break;
-            if (seenNames.has(card.name)) continue;
-            if (isBanned(card.name)) continue;
-            if (!isSubsetOfColorIdentity(card.colorIdentity, commander.colorIdentity)) continue;
-            if (card.typeLine.toLowerCase().includes("land")) continue;
-
-            cardPool.push(card);
-            seenNames.add(card.name);
-            added++;
-          }
-        } catch {
-          warnings.push({
-            source: "scryfall",
-            message: `Scryfall query failed for "${aq.label}". Some cards may be missing.`,
-          });
-        }
-      }
-
-      // --- Phase 4: Allocate categories (65%) ---
-      dispatch("generation-progress", {
-        phase: "Allocating card categories",
-        percentComplete: 65,
-      });
-
-      // Cap the card pool — we only need ~62 non-land cards (99 - landCount)
-      const targetNonCommander = 99;
+      // 4c: If EDHREC gave us very few cards, fall back to archetype Scryfall queries
       const nonLandTarget = targetNonCommander - landCount;
-      const cappedPool = cardPool.slice(0, Math.max(nonLandTarget + 20, 80));
+      if (nonLandPool.length < nonLandTarget * 0.6) {
+        dispatch("generation-progress", { phase: "Supplementing with Scryfall search", percentComplete: 60 });
+        const archetypeQueries = buildArchetypeQueries(commander, archetype, bracketLevel);
+        for (const aq of archetypeQueries) {
+          try {
+            const result = await this.scryfallAdapter.searchRaw(aq.query);
+            let added = 0;
+            for (const card of result.cards) {
+              if (added >= aq.targetCount) break;
+              if (seenNames.has(card.name) || isBanned(card.name)) continue;
+              if (!isSubsetOfColorIdentity(card.colorIdentity, commander.colorIdentity)) continue;
+              if (card.typeLine.toLowerCase().includes("land")) continue;
+              nonLandPool.push(card);
+              seenNames.add(card.name);
+              added++;
+            }
+          } catch {
+            warnings.push({ source: "scryfall", message: `Query failed for "${aq.label}".` });
+          }
+        }
+      }
 
-      // Shuffle the capped pool to ensure variety across regenerations.
-      // We keep the top ~30% in place (highest EDHREC synergy / first results)
-      // and shuffle the rest so the allocator picks different cards each time.
-      const keepTop = Math.floor(cappedPool.length * 0.3);
-      const topCards = cappedPool.slice(0, keepTop);
-      const restCards = cappedPool.slice(keepTop);
+      // ---- Phase 5: Shuffle and allocate (70%) ----
+      dispatch("generation-progress", { phase: "Allocating card categories", percentComplete: 70 });
+
+      // Shuffle the pool for variety: keep top 40% stable, shuffle rest
+      const keepTop = Math.floor(nonLandPool.length * 0.4);
+      const topCards = nonLandPool.slice(0, keepTop);
+      const restCards = nonLandPool.slice(keepTop);
       for (let i = restCards.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [restCards[i], restCards[j]] = [restCards[j], restCards[i]];
       }
       const shuffledPool = [...topCards, ...restCards];
 
-      const categorized = allocate(shuffledPool, template, comboCards);
+      // Cap pool size
+      const cappedPool = shuffledPool.slice(0, Math.max(nonLandTarget + 20, 80));
+      const categorized = allocate(cappedPool, template, comboCards);
 
-      // --- Phase 5: Build mana base (80%) ---
-      dispatch("generation-progress", {
-        phase: "Building mana base",
-        percentComplete: 80,
-      });
+      // ---- Phase 6: Build mana base (80%) ----
+      dispatch("generation-progress", { phase: "Building mana base", percentComplete: 80 });
 
       const nonLandCards = collectNonLandCards(categorized);
-      const colorRequirements = calculateColorRequirements(
-        nonLandCards.map((e) => e.card),
-      );
-      const manaBase = await buildManaBase(
-        commander.colorIdentity,
-        colorRequirements,
-        landCount,
-        this.scryfallAdapter,
-      );
+      const colorRequirements = calculateColorRequirements(nonLandCards.map((e) => e.card));
 
-      // --- Phase 6: Assemble and fill (90%) ---
-      dispatch("generation-progress", {
-        phase: "Assembling deck",
-        percentComplete: 90,
-      });
+      // Use EDHREC lands if we have them, otherwise fall back to hardcoded
+      let manaBase: DeckEntry[];
+      if (landPool.length >= 10) {
+        // Build mana base from EDHREC's land recommendations
+        manaBase = buildManaBaseFromPool(landPool, landCount, commander.colorIdentity);
+      } else {
+        manaBase = await buildManaBase(commander.colorIdentity, colorRequirements, landCount, this.scryfallAdapter);
+      }
+
+      // ---- Phase 7: Assemble (90%) ----
+      dispatch("generation-progress", { phase: "Assembling deck", percentComplete: 90 });
 
       let allEntries = [...nonLandCards, ...manaBase];
 
-      /** Count total cards respecting quantity on each entry. */
       const totalQty = (entries: DeckEntry[]): number =>
         entries.reduce((sum, e) => sum + e.quantity, 0);
 
-      // Fill remaining slots from unallocated cards
+      // Fill from unallocated
       if (totalQty(allEntries) < targetNonCommander) {
         const existingNames = new Set(allEntries.map((e) => e.card.name));
         existingNames.add(commander.name);
-
-        const unallocated = categorized.unallocated.filter(
-          (e) => !existingNames.has(e.card.name),
-        );
-        for (const entry of unallocated) {
+        for (const entry of categorized.unallocated) {
           if (totalQty(allEntries) >= targetNonCommander) break;
-          allEntries.push(entry);
-          existingNames.add(entry.card.name);
+          if (!existingNames.has(entry.card.name)) {
+            allEntries.push(entry);
+            existingNames.add(entry.card.name);
+          }
         }
 
-        // If still short, do a generic Scryfall fill
+        // Last resort: Scryfall fill
         if (totalQty(allEntries) < targetNonCommander) {
           try {
             const remaining = targetNonCommander - totalQty(allEntries);
-            const fillCards = await this.searchFillCards(
-              commander.colorIdentity,
-              existingNames,
-              remaining,
-            );
+            const fillCards = await this.searchFillCards(commander.colorIdentity, existingNames, remaining);
             allEntries.push(...fillCards);
           } catch {
-            dispatch("generation-error", {
-              message: "Card data is temporarily unavailable. Please try again later.",
-            });
-            throw new Error("Card data is temporarily unavailable.");
+            dispatch("generation-error", { message: "Card data temporarily unavailable." });
+            throw new Error("Card data temporarily unavailable.");
           }
         }
       }
 
-      // Trim to exactly 99 total cards (respecting quantity)
+      // Trim to exactly 99
       while (totalQty(allEntries) > targetNonCommander) {
-        // Remove non-land singleton entries from the end first
         let removed = false;
         for (let i = allEntries.length - 1; i >= 0; i--) {
           if (allEntries[i].category !== "Land" && allEntries[i].quantity === 1) {
@@ -289,7 +304,6 @@ export class DeckGenerator {
             break;
           }
         }
-        // If only lands remain over budget, reduce a basic land quantity
         if (!removed) {
           for (let i = allEntries.length - 1; i >= 0; i--) {
             if (allEntries[i].quantity > 1) {
@@ -302,239 +316,167 @@ export class DeckGenerator {
       }
 
       if (totalQty(allEntries) < targetNonCommander) {
-        const errorMsg = `Could not assemble a complete deck for ${commander.name}. Try a different commander or archetype.`;
-        dispatch("generation-error", { message: errorMsg });
+        dispatch("generation-error", { message: `Could not assemble a complete deck for ${commander.name}.` });
         return {
-          deck: buildDeckObject(commander, allEntries),
-          combosIncluded,
-          warnings,
-          fallbacksUsed: [...fallbacksUsed, "incomplete-deck"],
-          archetype,
-          bracketLevel,
+          deck: buildDeckObject(commander, allEntries), combosIncluded, warnings,
+          fallbacksUsed: [...fallbacksUsed, "incomplete-deck"], archetype, bracketLevel,
         };
       }
 
-      // --- Phase 7: Finalize (95%) ---
-      dispatch("generation-progress", {
-        phase: "Validating deck",
-        percentComplete: 95,
-      });
+      // ---- Phase 8: Validate (95%) ----
+      dispatch("generation-progress", { phase: "Validating deck", percentComplete: 95 });
 
       const deck = buildDeckObject(commander, allEntries);
       const validationResult = validate(deck);
-
       if (!validationResult.isLegal) {
-        console.error("Generated deck failed validation:", validationResult.violations);
+        console.error("Validation failed:", validationResult.violations);
       }
 
       const result: GenerationResult = {
-        deck,
-        combosIncluded,
-        warnings,
-        fallbacksUsed,
-        archetype,
-        bracketLevel,
+        deck, combosIncluded, warnings, fallbacksUsed, archetype, bracketLevel,
       };
 
       dispatch("generation-complete", { result });
       return result;
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "An unexpected error occurred during deck generation.";
+      const message = error instanceof Error ? error.message : "An unexpected error occurred.";
       dispatch("generation-error", { message });
       throw error;
     }
   }
 
-  // -----------------------------------------------------------------------
-  // Private helpers
-  // -----------------------------------------------------------------------
+  // ---- Helpers ----
 
-  private async resolveRecommendations(
-    recommendations: EDHRECRecommendation[],
-    commanderColors: ColorIdentity,
-  ): Promise<Card[]> {
-    const idsToFetch = recommendations
-      .filter((r) => r.scryfallId)
-      .map((r) => r.scryfallId!);
-
-    let cards: Card[] = [];
-
-    if (idsToFetch.length > 0) {
-      cards = await this.scryfallAdapter.fetchCardCollection(idsToFetch);
+  private selectBestCombo(combos: Combo[], recommendations: EDHRECRecommendation[]): Combo | null {
+    if (combos.length === 0) return null;
+    const recNames = new Set(recommendations.map((r) => r.cardName));
+    let best: Combo | null = null;
+    let bestOverlap = -1;
+    for (const combo of combos) {
+      const overlap = combo.cards.filter((n) => recNames.has(n)).length;
+      if (overlap > bestOverlap) { bestOverlap = overlap; best = combo; }
     }
-
-    const resolvedNames = new Set(cards.map((c) => c.name));
-    const unresolvedRecs = recommendations.filter(
-      (r) => !r.scryfallId && !resolvedNames.has(r.cardName),
-    );
-
-    if (unresolvedRecs.length > 0) {
-      for (const rec of unresolvedRecs.slice(0, 50)) {
-        try {
-          const searchResult = await this.scryfallAdapter.searchCards(
-            `!"${rec.cardName}"`,
-            commanderColors,
-          );
-          if (searchResult.cards.length > 0) {
-            cards.push(searchResult.cards[0]);
-          }
-        } catch {
-          // Skip cards that can't be found
-        }
-      }
-    }
-
-    return cards.filter(
-      (card) =>
-        !isBanned(card.name) &&
-        isSubsetOfColorIdentity(card.colorIdentity, commanderColors) &&
-        !card.typeLine.toLowerCase().includes("land"),
-    );
+    return best;
   }
 
   private async resolveCardNames(cardNames: string[]): Promise<Card[]> {
     const resolved: Card[] = [];
     for (const name of cardNames) {
       try {
-        const searchResult = await this.scryfallAdapter.searchCards(
-          `!"${name}"`,
-          [],
-        );
-        if (searchResult.cards.length > 0) {
-          resolved.push(searchResult.cards[0]);
-        }
-      } catch {
-        // Skip cards that can't be found
-      }
+        const result = await this.scryfallAdapter.searchCards(`!"${name}"`, []);
+        if (result.cards.length > 0) resolved.push(result.cards[0]);
+      } catch { /* skip */ }
     }
     return resolved;
   }
 
   private async searchFillCards(
-    colorIdentity: ColorIdentity,
-    existingNames: Set<string>,
-    count: number,
+    colorIdentity: ColorIdentity, existingNames: Set<string>, count: number,
   ): Promise<DeckEntry[]> {
     const ci = colorIdentity.length > 0
       ? `id<=${colorIdentity.map((c) => c.toLowerCase()).join("")}`
       : "id<=c";
-    const result = await this.scryfallAdapter.searchRaw(
-      `f:commander ${ci} -t:land`,
-    );
-
+    const result = await this.scryfallAdapter.searchRaw(`f:commander ${ci} -t:land`);
     const entries: DeckEntry[] = [];
     for (const card of result.cards) {
       if (entries.length >= count) break;
-      if (existingNames.has(card.name)) continue;
-      if (isBanned(card.name)) continue;
+      if (existingNames.has(card.name) || isBanned(card.name)) continue;
       if (!isSubsetOfColorIdentity(card.colorIdentity, colorIdentity)) continue;
       if (card.typeLine.toLowerCase().includes("land")) continue;
-
-      entries.push({
-        card,
-        quantity: 1,
-        category: inferCategory(card),
-      });
+      entries.push({ card, quantity: 1, category: inferCategory(card) });
       existingNames.add(card.name);
     }
-
     return entries;
   }
 }
 
-// ---------------------------------------------------------------------------
-// Pure helper functions
-// ---------------------------------------------------------------------------
-
-function shuffleSimilarSynergyCards(
-  recommendations: EDHRECRecommendation[],
-): EDHRECRecommendation[] {
-  if (recommendations.length === 0) return [];
-
-  const sorted = [...recommendations].sort(
-    (a, b) => b.synergyScore - a.synergyScore,
-  );
-
-  const result: EDHRECRecommendation[] = [];
-  let groupStart = 0;
-
-  while (groupStart < sorted.length) {
-    const baseScore = sorted[groupStart].synergyScore;
-    let groupEnd = groupStart + 1;
-
-    while (
-      groupEnd < sorted.length &&
-      Math.abs(sorted[groupEnd].synergyScore - baseScore) <=
-        SYNERGY_SHUFFLE_TOLERANCE
-    ) {
-      groupEnd++;
-    }
-
-    const group = sorted.slice(groupStart, groupEnd);
-    for (let i = group.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [group[i], group[j]] = [group[j], group[i]];
-    }
-
-    result.push(...group);
-    groupStart = groupEnd;
-  }
-
-  return result;
-}
-
-function selectBestCombo(
-  combos: Combo[],
-  recommendations: EDHRECRecommendation[],
-): Combo | null {
-  if (combos.length === 0) return null;
-
-  const recNames = new Set(recommendations.map((r) => r.cardName));
-  let bestCombo: Combo | null = null;
-  let bestOverlap = -1;
-
-  for (const combo of combos) {
-    const overlap = combo.cards.filter((name) => recNames.has(name)).length;
-    if (overlap > bestOverlap) {
-      bestOverlap = overlap;
-      bestCombo = combo;
-    }
-  }
-
-  return bestCombo;
-}
+// ---- Pure helpers ----
 
 function collectNonLandCards(categorized: CategorizedCards): DeckEntry[] {
-  return [
-    ...categorized.ramp,
-    ...categorized.cardDraw,
-    ...categorized.removal,
-    ...categorized.threats,
-  ];
+  return [...categorized.ramp, ...categorized.cardDraw, ...categorized.removal, ...categorized.threats];
 }
 
 function buildDeckObject(commander: Card, entries: DeckEntry[]): Deck {
   return {
     id: crypto.randomUUID(),
     name: `${commander.name} Deck`,
-    commander,
-    entries,
+    commander, entries,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
 }
 
 function inferCategory(card: Card): DeckEntry["category"] {
-  const typeLine = card.typeLine.toLowerCase();
-  if (typeLine.includes("land")) return "Land";
-  if (typeLine.includes("planeswalker")) return "Planeswalker";
-  if (typeLine.includes("creature")) return "Creature";
-  if (typeLine.includes("instant")) return "Instant";
-  if (typeLine.includes("sorcery")) return "Sorcery";
-  if (typeLine.includes("artifact")) return "Artifact";
-  if (typeLine.includes("enchantment")) return "Enchantment";
+  const t = card.typeLine.toLowerCase();
+  if (t.includes("land")) return "Land";
+  if (t.includes("planeswalker")) return "Planeswalker";
+  if (t.includes("creature")) return "Creature";
+  if (t.includes("instant")) return "Instant";
+  if (t.includes("sorcery")) return "Sorcery";
+  if (t.includes("artifact")) return "Artifact";
+  if (t.includes("enchantment")) return "Enchantment";
   return "Custom";
+}
+
+/**
+ * Build a mana base from EDHREC's recommended lands.
+ * Uses the actual lands from the average deck, supplemented with
+ * basics to reach the target land count.
+ */
+function buildManaBaseFromPool(
+  landPool: Card[],
+  landCount: number,
+  colorIdentity: ColorIdentity,
+): DeckEntry[] {
+  const entries: DeckEntry[] = [];
+  let remaining = landCount;
+  const usedNames = new Set<string>();
+
+  // Basic land names
+  const BASICS = new Set(["Plains", "Island", "Swamp", "Mountain", "Forest", "Wastes"]);
+  const BASIC_FOR_COLOR: Record<string, string> = { W: "Plains", U: "Island", B: "Swamp", R: "Mountain", G: "Forest" };
+
+  // Add non-basic lands from the pool first
+  for (const land of landPool) {
+    if (remaining <= 0) break;
+    if (BASICS.has(land.name)) continue; // Handle basics separately
+    if (usedNames.has(land.name)) continue;
+    entries.push({ card: land, quantity: 1, category: "Land" });
+    usedNames.add(land.name);
+    remaining--;
+  }
+
+  // Fill remaining with basics proportional to color identity
+  if (remaining > 0 && colorIdentity.length > 0) {
+    const perColor = Math.floor(remaining / colorIdentity.length);
+    let leftover = remaining - perColor * colorIdentity.length;
+    for (const color of colorIdentity) {
+      const basicName = BASIC_FOR_COLOR[color];
+      if (!basicName) continue;
+      const qty = perColor + (leftover > 0 ? 1 : 0);
+      if (leftover > 0) leftover--;
+      if (qty > 0) {
+        entries.push({
+          card: makeLandCard(basicName, true),
+          quantity: qty,
+          category: "Land",
+        });
+      }
+    }
+  } else if (remaining > 0) {
+    entries.push({ card: makeLandCard("Wastes", true), quantity: remaining, category: "Land" });
+  }
+
+  return entries;
+}
+
+function makeLandCard(name: string, isBasic: boolean): Card {
+  return {
+    id: `land-${name.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
+    name, manaCost: "", cmc: 0,
+    typeLine: isBasic ? `Basic Land — ${name}` : "Land",
+    oracleText: "", colors: [], colorIdentity: [],
+    legalities: { commander: "legal" }, keywords: [],
+    isLegendary: false, isCreature: false, canBeCommander: false,
+  };
 }

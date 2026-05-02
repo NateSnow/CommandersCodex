@@ -1,11 +1,11 @@
 /**
- * EDHREC adapter for fetching commander card recommendations.
+ * EDHREC adapter for fetching commander card recommendations and average decks.
  *
- * EDHREC does not have an official API. This adapter fetches JSON data from
- * their public-facing JSON endpoints (e.g.,
- * `https://json.edhrec.com/pages/commanders/{slug}.json`). This is a
- * community-known pattern but is not guaranteed to be stable — EDHREC may
- * change their URL structure at any time.
+ * Uses two EDHREC JSON endpoints:
+ * 1. Commander page: synergy scores, inclusion rates for individual cards
+ * 2. Average deck page: a complete 100-card decklist aggregated from real decks
+ *
+ * These are community-known endpoints, not an official API.
  */
 
 import type { EDHRECRecommendation } from "../models/recommendation.js";
@@ -14,24 +14,31 @@ import type { EDHRECRecommendation } from "../models/recommendation.js";
 // Public interface
 // ---------------------------------------------------------------------------
 
+/** A card from the EDHREC average deck, with its Scryfall UUID and quantity. */
+export interface EDHRECAverageDeckCard {
+  scryfallId: string;
+  name: string;
+  quantity: number;
+  category: string;  // "creatures", "instants", "sorceries", "artifacts", "enchantments", "planeswalkers", "lands", "basics"
+}
+
+/** The full average deck response from EDHREC. */
+export interface EDHRECAverageDeck {
+  cards: EDHRECAverageDeckCard[];
+  deckList: string[];  // Text format: "1 Card Name"
+  totalCards: number;
+  numDecksAveraged: number;
+}
+
 export interface EDHRECAdapter {
   getCommanderRecommendations(commanderName: string): Promise<EDHRECRecommendation[]>;
+  getAverageDeck(commanderName: string): Promise<EDHRECAverageDeck | null>;
 }
 
 // ---------------------------------------------------------------------------
 // Slug conversion
 // ---------------------------------------------------------------------------
 
-/**
- * Convert a commander name to an EDHREC URL slug.
- *
- * Rules:
- *  - Lowercase the entire name
- *  - Replace spaces with hyphens
- *  - Remove commas and apostrophes
- *
- * Example: "Atraxa, Praetors' Voice" → "atraxa-praetors-voice"
- */
 export function toEdhrecSlug(commanderName: string): string {
   return commanderName
     .toLowerCase()
@@ -40,7 +47,7 @@ export function toEdhrecSlug(commanderName: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// EDHREC response types (raw JSON shapes)
+// EDHREC response types
 // ---------------------------------------------------------------------------
 
 interface EdhrecCardlistEntry {
@@ -52,12 +59,38 @@ interface EdhrecCardlistEntry {
   image?: string;
 }
 
+interface EdhrecCardView {
+  id?: string;
+  name?: string;
+  label?: string;
+}
+
 interface EdhrecPageJson {
   cardlists?: Array<{
     tag?: string;
     cardviews?: EdhrecCardlistEntry[];
   }>;
   cardlist?: EdhrecCardlistEntry[];
+}
+
+interface EdhrecAvgDeckJson {
+  num_decks_avg?: number;
+  total_card_count?: number;
+  deck?: string[];
+  container?: {
+    json_dict?: {
+      cardlists?: Array<{
+        tag?: string;
+        header?: string;
+        cardviews?: EdhrecCardView[];
+      }>;
+    };
+  };
+  archidekt?: Array<{
+    u?: string;  // Scryfall UUID
+    q?: number;  // Quantity
+    c?: string;  // Category code
+  }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -78,13 +111,28 @@ function mapRecommendation(entry: EdhrecCardlistEntry): EDHRECRecommendation {
   };
 }
 
+/** Map a tag string to a readable category. */
+function tagToCategory(tag: string): string {
+  const map: Record<string, string> = {
+    creatures: "creatures",
+    instants: "instants",
+    sorceries: "sorceries",
+    artifacts: "artifacts",
+    enchantments: "enchantments",
+    planeswalkers: "planeswalkers",
+    lands: "lands",
+    basics: "basics",
+  };
+  return map[tag] ?? tag;
+}
+
 // ---------------------------------------------------------------------------
-// EDHRECAdapter factory
+// Factory
 // ---------------------------------------------------------------------------
 
 export function createEDHRECAdapter(): EDHRECAdapter {
-  // Cache: maps commander slug → last successful recommendations
-  const cache = new Map<string, EDHRECRecommendation[]>();
+  const recCache = new Map<string, EDHRECRecommendation[]>();
+  const avgCache = new Map<string, EDHRECAverageDeck>();
 
   return {
     async getCommanderRecommendations(
@@ -95,39 +143,94 @@ export function createEDHRECAdapter(): EDHRECAdapter {
 
       try {
         const response = await fetch(url);
-
-        if (!response.ok) {
-          // Return cached data if available, otherwise empty array
-          return cache.get(slug) ?? [];
-        }
+        if (!response.ok) return recCache.get(slug) ?? [];
 
         const json: EdhrecPageJson = await response.json();
-
-        // EDHREC structures recommendations in cardlists arrays or a
-        // top-level cardlist. We collect entries from all available sources.
         const entries: EdhrecCardlistEntry[] = [];
 
         if (json.cardlists) {
           for (const list of json.cardlists) {
-            if (list.cardviews) {
-              entries.push(...list.cardviews);
+            if (list.cardviews) entries.push(...list.cardviews);
+          }
+        }
+        if (json.cardlist) entries.push(...json.cardlist);
+
+        const recommendations = entries.map(mapRecommendation);
+        recCache.set(slug, recommendations);
+        return recommendations;
+      } catch {
+        return recCache.get(slug) ?? [];
+      }
+    },
+
+    async getAverageDeck(
+      commanderName: string,
+    ): Promise<EDHRECAverageDeck | null> {
+      const slug = toEdhrecSlug(commanderName);
+      const cached = avgCache.get(slug);
+      if (cached) return cached;
+
+      const url = `https://json.edhrec.com/pages/average-decks/${slug}.json`;
+
+      try {
+        const response = await fetch(url);
+        if (!response.ok) return null;
+
+        const json: EdhrecAvgDeckJson = await response.json();
+
+        const cards: EDHRECAverageDeckCard[] = [];
+
+        // Extract cards from the cardlists (grouped by type with Scryfall IDs)
+        const cardlists = json.container?.json_dict?.cardlists ?? [];
+        for (const list of cardlists) {
+          const tag = tagToCategory(list.tag ?? "");
+          if (list.cardviews) {
+            for (const cv of list.cardviews) {
+              if (cv.id && cv.name) {
+                // Check if the label has a quantity prefix like "4 Forests"
+                let qty = 1;
+                const labelMatch = cv.label?.match(/^(\d+)\s/);
+                if (labelMatch) qty = parseInt(labelMatch[1], 10);
+
+                cards.push({
+                  scryfallId: cv.id,
+                  name: cv.name,
+                  quantity: qty,
+                  category: tag,
+                });
+              }
             }
           }
         }
 
-        if (json.cardlist) {
-          entries.push(...json.cardlist);
+        // Also parse the archidekt array for quantities (more reliable for basics)
+        if (json.archidekt && json.archidekt.length > 0) {
+          const archMap = new Map<string, number>();
+          for (const entry of json.archidekt) {
+            if (entry.u && entry.q) {
+              archMap.set(entry.u, entry.q);
+            }
+          }
+          // Update quantities from archidekt data
+          for (const card of cards) {
+            const archQty = archMap.get(card.scryfallId);
+            if (archQty && archQty > 1) {
+              card.quantity = archQty;
+            }
+          }
         }
 
-        const recommendations = entries.map(mapRecommendation);
+        const result: EDHRECAverageDeck = {
+          cards,
+          deckList: json.deck ?? [],
+          totalCards: json.total_card_count ?? 100,
+          numDecksAveraged: json.num_decks_avg ?? 0,
+        };
 
-        // Cache the successful response
-        cache.set(slug, recommendations);
-
-        return recommendations;
+        avgCache.set(slug, result);
+        return result;
       } catch {
-        // Network error, JSON parse error, etc. — return cached or empty
-        return cache.get(slug) ?? [];
+        return null;
       }
     },
   };
