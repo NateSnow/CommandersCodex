@@ -323,6 +323,29 @@ template.innerHTML = `
   .category-name { font-family: 'Cinzel', Georgia, serif; font-size: 0.85rem; font-weight: 600; color: #f0d078; }
   .category-count { font-size: 0.75rem; color: #6b6580; }
 
+  .btn-shuffle {
+    margin-left: auto;
+    background: rgba(139,92,246,0.1);
+    border: 1px solid rgba(139,92,246,0.2);
+    border-radius: 4px;
+    color: #a78bfa;
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s, transform 0.15s;
+    min-height: 28px;
+    line-height: 1;
+  }
+
+  .btn-shuffle:hover {
+    background: rgba(139,92,246,0.2);
+    border-color: rgba(139,92,246,0.4);
+    transform: scale(1.05);
+  }
+
+  .btn-shuffle:active { transform: scale(0.95); }
+  .btn-shuffle:focus-visible { outline: 2px solid #8b5cf6; outline-offset: 2px; }
+
   .card-list { padding: 0 0 4px 0; }
   .card-list.collapsed { display: none; }
 
@@ -674,6 +697,9 @@ export class DeckView extends HTMLElement {
     grouped.set("Commander", [{ card: deck.commander, quantity: 1, category: "Commander" }]);
     for (const entry of deck.entries) { const list = grouped.get(entry.category) ?? []; list.push(entry); grouped.set(entry.category, list); }
 
+    // Categories that can be shuffled (not Commander, not Land)
+    const shuffleable = new Set<CardCategory>(["Creature", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker", "Ramp", "Removal", "Card Draw", "Protection", "Custom"]);
+
     let sectionDelay = 0;
     for (const category of CATEGORY_ORDER) {
       const entries = grouped.get(category);
@@ -689,7 +715,24 @@ export class DeckView extends HTMLElement {
       header.setAttribute("tabindex", "0");
       header.setAttribute("role", "button");
       header.setAttribute("aria-expanded", "true");
-      header.innerHTML = `<span class="collapse-arrow">▼</span><span class="category-name">${category}</span><span class="category-count">(${totalInCategory})</span>`;
+
+      const shuffleBtn = shuffleable.has(category)
+        ? `<button class="btn-shuffle" data-category="${category}" title="Shuffle ${category}" aria-label="Shuffle ${category} cards">🔀</button>`
+        : "";
+
+      header.innerHTML = `<span class="collapse-arrow">▼</span><span class="category-name">${category}</span><span class="category-count">(${totalInCategory})</span>${shuffleBtn}`;
+
+      // Wire shuffle button
+      const shuffleBtnEl = header.querySelector(".btn-shuffle");
+      if (shuffleBtnEl) {
+        shuffleBtnEl.addEventListener("click", (e) => {
+          e.stopPropagation(); // Don't toggle collapse
+          this.dispatchEvent(new CustomEvent("shuffle-category", {
+            detail: { category },
+            bubbles: true, composed: true,
+          }));
+        });
+      }
 
       const cardList = document.createElement("div");
       cardList.className = "card-list";
@@ -707,7 +750,13 @@ export class DeckView extends HTMLElement {
         cardList.appendChild(row);
       }
 
-      header.addEventListener("click", () => { const c = header.classList.toggle("collapsed"); cardList.classList.toggle("collapsed", c); header.setAttribute("aria-expanded", c ? "false" : "true"); });
+      header.addEventListener("click", (e) => {
+        // Don't collapse if clicking the shuffle button
+        if ((e.target as HTMLElement).closest(".btn-shuffle")) return;
+        const c = header.classList.toggle("collapsed");
+        cardList.classList.toggle("collapsed", c);
+        header.setAttribute("aria-expanded", c ? "false" : "true");
+      });
       header.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); header.click(); } });
       section.appendChild(header);
       section.appendChild(cardList);

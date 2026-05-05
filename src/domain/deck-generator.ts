@@ -45,6 +45,10 @@ export class DeckGenerator {
   private edhrecAdapter: EDHRECAdapter;
   private commanderSpellbookAdapter: CommanderSpellbookAdapter;
 
+  /** Retained card pool from last generation for category shuffling. */
+  private _lastNonLandPool: Card[] = [];
+  private _lastDeck: Deck | null = null;
+
   constructor(deps: {
     scryfallAdapter: ScryfallAdapter;
     edhrecAdapter: EDHRECAdapter;
@@ -337,12 +341,95 @@ export class DeckGenerator {
       };
 
       dispatch("generation-complete", { result });
+
+      // Save state for category shuffling
+      this._lastNonLandPool = [...nonLandPool];
+      this._lastDeck = deck;
+
       return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : "An unexpected error occurred.";
       dispatch("generation-error", { message });
       throw error;
     }
+  }
+
+  // ---- Shuffle a single category ----
+
+  /**
+   * Replace cards in a specific category with different cards from the pool.
+   * Keeps the same count, swaps in cards that weren't used.
+   */
+  shuffleCategory(category: string): Deck | null {
+    if (!this._lastDeck || this._lastNonLandPool.length === 0) return null;
+
+    const deck = this._lastDeck;
+    const currentEntries = deck.entries.filter((e) => e.category === category);
+    const otherEntries = deck.entries.filter((e) => e.category !== category);
+    const targetCount = currentEntries.reduce((sum, e) => sum + e.quantity, 0);
+
+    if (targetCount === 0) return null;
+
+    // Names currently in the deck (all categories)
+    const usedNames = new Set<string>();
+    usedNames.add(deck.commander.name);
+    for (const e of otherEntries) usedNames.add(e.card.name);
+
+    // Find candidates from the pool that aren't in the deck (excluding this category)
+    const candidates = this._lastNonLandPool.filter(
+      (c) => !usedNames.has(c.name) && !isBanned(c.name) && !c.typeLine.toLowerCase().includes("land"),
+    );
+
+    // Shuffle candidates
+    for (let i = candidates.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+    }
+
+    // Pick new cards for this category
+    const newEntries: DeckEntry[] = [];
+    let filled = 0;
+    for (const card of candidates) {
+      if (filled >= targetCount) break;
+      newEntries.push({ card, quantity: 1, category: category as DeckEntry["category"] });
+      filled++;
+    }
+
+    // If we couldn't find enough new cards, keep some originals
+    if (filled < targetCount) {
+      const shuffledOriginals = [...currentEntries];
+      for (let i = shuffledOriginals.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffledOriginals[i], shuffledOriginals[j]] = [shuffledOriginals[j], shuffledOriginals[i]];
+      }
+      for (const entry of shuffledOriginals) {
+        if (filled >= targetCount) break;
+        newEntries.push(entry);
+        filled += entry.quantity;
+      }
+    }
+
+    // Rebuild deck
+    const updatedDeck: Deck = {
+      ...deck,
+      entries: [...otherEntries, ...newEntries],
+      updatedAt: new Date().toISOString(),
+    };
+
+    this._lastDeck = updatedDeck;
+
+    dispatch("generation-complete", {
+      result: {
+        deck: updatedDeck,
+        combosIncluded: [],
+        warnings: [],
+        fallbacksUsed: ["category-shuffle"],
+        archetype: "balanced" as Archetype,
+        bracketLevel: 2 as BracketLevel,
+      },
+    });
+
+    return updatedDeck;
   }
 
   // ---- Helpers ----

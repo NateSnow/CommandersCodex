@@ -133,3 +133,9 @@ deckView.addEventListener("regenerate-deck", (() => {
 shell.addEventListener("open-credits", (() => {
   creditsPage.show();
 }) as EventListener);
+
+// Shuffle category
+deckView.addEventListener("shuffle-category", ((event: Event) => {
+  const category = (event as CustomEvent).detail.category;
+  deckGenerator.shuffleCategory(category);
+}) as EventListener);
