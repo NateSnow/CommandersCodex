@@ -275,8 +275,8 @@ template.innerHTML = `
       <div class="credit-card">
         <div class="credit-name">Scryfall</div>
         <div class="credit-desc">
-          Card data, search, autocomplete, and card images are provided by the Scryfall API.
-          Scryfall is not produced by or endorsed by Wizards of the Coast.
+          Card data, search, autocomplete, card images, EDHREC rank data, and TCGplayer pricing
+          are provided by the Scryfall API. Scryfall is not produced by or endorsed by Wizards of the Coast.
         </div>
         <a class="credit-link" href="https://scryfall.com" target="_blank" rel="noopener noreferrer">scryfall.com</a>
       </div>
@@ -284,8 +284,9 @@ template.innerHTML = `
       <div class="credit-card">
         <div class="credit-name">EDHREC</div>
         <div class="credit-desc">
-          Commander card recommendations and synergy scores are sourced from EDHREC,
-          the community-driven resource for EDH/Commander deck building data.
+          Commander card recommendations, synergy scores, and average deck data are sourced from EDHREC.
+          Generated decks are built primarily from EDHREC's average deck aggregations — real decklists
+          from thousands of players compiled into optimized card pools for each commander.
         </div>
         <a class="credit-link" href="https://edhrec.com" target="_blank" rel="noopener noreferrer">edhrec.com</a>
       </div>
@@ -297,6 +298,25 @@ template.innerHTML = `
           the community-maintained database of Magic: The Gathering combos.
         </div>
         <a class="credit-link" href="https://commanderspellbook.com" target="_blank" rel="noopener noreferrer">commanderspellbook.com</a>
+      </div>
+
+      <div class="credit-card">
+        <div class="credit-name">TCGplayer</div>
+        <div class="credit-desc">
+          Card market prices displayed in the power level analysis are sourced from TCGplayer
+          via the Scryfall API. Prices are estimates and may not reflect current market conditions.
+        </div>
+        <a class="credit-link" href="https://www.tcgplayer.com" target="_blank" rel="noopener noreferrer">tcgplayer.com</a>
+      </div>
+
+      <div class="credit-card">
+        <div class="credit-name">EDH Power Level</div>
+        <div class="credit-desc">
+          The power level scoring algorithm is inspired by edhpowerlevel.com's data-driven approach
+          of combining card price, popularity (EDHREC rank), and mana efficiency to quantify deck strength.
+          Our implementation is independent but follows their published methodology.
+        </div>
+        <a class="credit-link" href="https://edhpowerlevel.com" target="_blank" rel="noopener noreferrer">edhpowerlevel.com</a>
       </div>
     </div>
 
