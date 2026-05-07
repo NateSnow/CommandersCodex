@@ -51,6 +51,10 @@ export interface Card {
   isLegendary: boolean;          // Derived from typeLine
   isCreature: boolean;           // Derived from typeLine
   canBeCommander: boolean;       // Derived: legendary creature OR has "can be your commander" text
+  /** USD price from TCGplayer (via Scryfall). Undefined if unavailable. */
+  priceUsd?: number;
+  /** EDHREC rank (lower = more popular). Undefined if unavailable. */
+  edhrecRank?: number;
 }
 
 /** Filters for card search queries. */

@@ -183,6 +183,11 @@ interface ScryfallCardJson {
   card_faces?: ScryfallCardFaceJson[];
   legalities: Record<string, string>;
   keywords: string[];
+  prices?: {
+    usd?: string | null;
+    usd_foil?: string | null;
+  };
+  edhrec_rank?: number;
 }
 
 interface ScryfallCardFaceJson {
@@ -305,6 +310,8 @@ export function mapScryfallCard(raw: ScryfallCardJson): Card {
     isLegendary,
     isCreature,
     canBeCommander,
+    priceUsd: raw.prices?.usd ? parseFloat(raw.prices.usd) : undefined,
+    edhrecRank: raw.edhrec_rank,
   };
 }
 

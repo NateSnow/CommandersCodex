@@ -12,6 +12,7 @@ import type { GenerationResult } from "../models/generation.js";
 import { ARCHETYPE_INFO } from "../models/generation.js";
 import { toText, toMTGO } from "../domain/export-formatter.js";
 import { getAverageCmc, getManaCurve } from "../domain/statistics-calculator.js";
+import { calculatePowerLevel } from "../domain/power-level-calculator.js";
 import { subscribe } from "../utils/event-bus.js";
 
 const CATEGORY_ORDER: readonly CardCategory[] = [
@@ -254,6 +255,120 @@ template.innerHTML = `
   }
   .stat-label { font-size: 0.65rem; color: #6b6580; text-transform: uppercase; letter-spacing: 0.05em; }
 
+  /* Power Level Panel */
+  .power-panel {
+    display: none;
+    background: rgba(139,92,246,0.04);
+    border: 1px solid rgba(139,92,246,0.15);
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 14px;
+  }
+
+  .power-panel.visible { display: block; }
+
+  .power-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  .power-level-badge {
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Cinzel', Georgia, serif;
+    font-size: 1.3rem; font-weight: 900;
+    color: #fff;
+    background: conic-gradient(from 180deg, #8b5cf6, #d4a843, #2dd4bf, #8b5cf6);
+    box-shadow: 0 0 20px rgba(139,92,246,0.3);
+    position: relative;
+  }
+
+  .power-level-badge::before {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border-radius: 50%;
+    background: #0f0e1a;
+  }
+
+  .power-level-badge span {
+    position: relative;
+    z-index: 1;
+    text-shadow: 0 0 10px rgba(139,92,246,0.5);
+  }
+
+  .power-meta { flex: 1; }
+
+  .power-title {
+    font-family: 'Cinzel', Georgia, serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #a78bfa;
+    margin-bottom: 2px;
+  }
+
+  .power-score {
+    font-size: 0.75rem;
+    color: #6b6580;
+  }
+
+  .power-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 8px;
+  }
+
+  .power-metric {
+    text-align: center;
+    padding: 6px;
+    background: rgba(30,28,48,0.4);
+    border-radius: 4px;
+    border: 1px solid #2a2840;
+  }
+
+  .power-metric-value {
+    font-family: 'Cinzel', Georgia, serif;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #f0d078;
+  }
+
+  .power-metric-label {
+    font-size: 0.6rem;
+    color: #6b6580;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-top: 2px;
+  }
+
+  .power-value-bar {
+    margin-top: 8px;
+    padding: 8px;
+    background: rgba(30,28,48,0.3);
+    border-radius: 4px;
+    border: 1px solid #2a2840;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .power-value-label {
+    font-size: 0.75rem;
+    color: #a09ab0;
+    white-space: nowrap;
+  }
+
+  .power-value-amount {
+    font-family: 'Cinzel', Georgia, serif;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #2dd4bf;
+    margin-left: auto;
+  }
+
   /* Mana curve */
   .mana-curve { display: flex; align-items: flex-end; gap: 3px; height: 50px; margin-bottom: 14px; padding: 4px 0; }
   .curve-bar-wrapper { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; }
@@ -433,6 +548,7 @@ template.innerHTML = `
         <div class="stats-numbers" id="stats-numbers"></div>
         <div class="mana-curve" id="mana-curve"></div>
         <div class="stats-bar" id="stats-bar"></div>
+        <div class="power-panel" id="power-panel"></div>
       </div>
     </div>
     <div class="combo-info" id="combo-info">
@@ -624,6 +740,7 @@ export class DeckView extends HTMLElement {
 
     this.renderManaCurve(nonLandCards);
     this.renderStatsBar(deck);
+    this.renderPowerLevel(deck);
 
     const comboInfo = this.shadow.getElementById("combo-info")!;
     if (result.combosIncluded.length > 0) {
@@ -676,6 +793,44 @@ export class DeckView extends HTMLElement {
       seg.innerHTML = `<span class="seg-label">${count}</span>`;
       bar.appendChild(seg);
     }
+  }
+
+  private renderPowerLevel(deck: Deck): void {
+    const panel = this.shadow.getElementById("power-panel")!;
+    const pl = calculatePowerLevel(deck);
+
+    panel.classList.add("visible");
+    panel.innerHTML = `
+      <div class="power-header">
+        <div class="power-level-badge"><span>${pl.powerLevel.toFixed(1)}</span></div>
+        <div class="power-meta">
+          <div class="power-title">⚡ Power Level</div>
+          <div class="power-score">Score: ${pl.score} / 1000 · Bracket ${pl.bracket}</div>
+        </div>
+      </div>
+      <div class="power-metrics">
+        <div class="power-metric">
+          <div class="power-metric-value">${pl.efficiency.toFixed(1)}</div>
+          <div class="power-metric-label">Efficiency</div>
+        </div>
+        <div class="power-metric">
+          <div class="power-metric-value">${pl.tippingPoint}</div>
+          <div class="power-metric-label">Tipping Pt</div>
+        </div>
+        <div class="power-metric">
+          <div class="power-metric-value">${pl.avgCmc.toFixed(1)}</div>
+          <div class="power-metric-label">Avg CMC</div>
+        </div>
+        <div class="power-metric">
+          <div class="power-metric-value">${pl.avgPlayability.toFixed(0)}%</div>
+          <div class="power-metric-label">Playability</div>
+        </div>
+      </div>
+      <div class="power-value-bar">
+        <span class="power-value-label">💰 Estimated Market Value</span>
+        <span class="power-value-amount">$${pl.totalValue.toFixed(2)}</span>
+      </div>
+    `;
   }
 
   private broadType(entry: DeckEntry): string {
