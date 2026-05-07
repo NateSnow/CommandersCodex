@@ -38,7 +38,7 @@ function categoryKey(
 }
 
 /** Map a FunctionalCategory to a valid CardCategory for DeckEntry. */
-function toCardCategory(cat: FunctionalCategory): DeckEntry["category"] {
+function toCardCategory(cat: FunctionalCategory, card: Card): DeckEntry["category"] {
   switch (cat) {
     case "Ramp":
       return "Ramp";
@@ -47,8 +47,22 @@ function toCardCategory(cat: FunctionalCategory): DeckEntry["category"] {
     case "Removal":
       return "Removal";
     case "Threat":
-      return "Creature";
+      // Use the card's actual type instead of lumping everything as "Creature"
+      return inferTypeCategory(card);
   }
+}
+
+/** Infer a deck category from the card's type line. */
+function inferTypeCategory(card: Card): DeckEntry["category"] {
+  const t = card.typeLine.toLowerCase();
+  if (t.includes("land")) return "Land";
+  if (t.includes("planeswalker")) return "Planeswalker";
+  if (t.includes("creature")) return "Creature";
+  if (t.includes("instant")) return "Instant";
+  if (t.includes("sorcery")) return "Sorcery";
+  if (t.includes("artifact")) return "Artifact";
+  if (t.includes("enchantment")) return "Enchantment";
+  return "Creature"; // Fallback
 }
 
 /** Create a DeckEntry from a Card, using its FunctionalCategory as the deck category. */
@@ -56,7 +70,7 @@ function toDeckEntry(card: Card): DeckEntry {
   return {
     card,
     quantity: 1,
-    category: toCardCategory(categorize(card)),
+    category: toCardCategory(categorize(card), card),
   };
 }
 
